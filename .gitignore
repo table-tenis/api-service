@@ -1,0 +1,6 @@
+env
+account_service/account_manager/*/__pycache*
+account_service/account_manager/__pycache*
+account_service/account_manager/__init__.py
+account_service/account_manager/*/__init__.py
+account_service/account_manager/test*
