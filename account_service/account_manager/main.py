@@ -5,7 +5,6 @@ from routes.account import account_router
 from routes.admin import admin_router
 import uvicorn
 import hypercorn
-from core.database import Settings
 description = \
 """
     Account API To Manager System Accessing.
@@ -26,8 +25,8 @@ async def add_process_time_header(request: Request, call_next):
     response.headers["X-Process-Time"] = str(f'{process_time} sec')#str(f'{process_time:0.10f} sec')
     return response
 
-app.include_router(account_router, prefix="/api/xface/v1/acc/accounts")
-app.include_router(admin_router, prefix="/api/xface/v1/acc/admin")
+app.include_router(account_router, prefix="/api/xface/v1/accounts")
+app.include_router(admin_router, prefix="/api/xface/v1/accounts/admin")
 if __name__ == "__main__":
     uvicorn.run("main:app", host="172.21.100.174", port=9082, reload=True)
 

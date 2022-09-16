@@ -38,10 +38,13 @@ docker build -t account_service .
 docker-compose up -d
 ```
 ## **API Endpoint Paths**
-- ```/api/xface/v1/acc/accounts``` : POST a account, GET all account information. Require super account. GET method supports query parameters: limit, sort, match by username.
-- ```/api/xface/v1/acc/accounts/{username}``` : this endpoint has path parameter *username*. PUT to update an account information by username, GET an account information by username, DELETE an account by username. Require authenticate.
-- ```/api/xface/v1/acc/accounts/{username}/changepassword``` : this endpoint has path parameter *username*. PUT to update password of an account. Require authenticate
-- ```/api/xface/v1/acc/accounts/login``` : POST to login to system. Require *x-www-form-urlencoded* body format. Reponse token to client.
-- ```/api/xface/v1/acc/accounts/logout``` : GET to logout system. Require authenticate.
+### **Link To Test API Endpoint**
+- http://172.21.100.174:9082/docs
+### **Account API EndPoints**
+- ```/api/xface/v1/accounts``` : POST a account, GET all account information. Require super account. GET method supports query parameters: limit, sort, match by username.
+- ```/api/xface/v1/accounts/{username}``` : this endpoint has path parameter *username*. PUT to update an account information by username, GET an account information by username, DELETE an account by username. Require authenticate.
+- ```/api/xface/v1/accounts/{username}/changepassword``` : this endpoint has path parameter *username*. PUT to update password of an account. Require authenticate
+- ```/api/xface/v1/accounts/login``` : POST to login to system. Require *x-www-form-urlencoded* body format. Reponse token to client.
+- ```/api/xface/v1/accounts/logout``` : GET to logout system. Require authenticate.
 
 

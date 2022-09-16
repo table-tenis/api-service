@@ -2,7 +2,7 @@ from auth.jwt_handler import verify_access_token
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from core.database import redis_db
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/xface/v1/acc/accounts/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/xface/v1/accounts/login")
 
 async def authenticate(token: str = Depends(oauth2_scheme)) -> str:
     if not token:

@@ -7,6 +7,6 @@
           context: .
           dockerfile: Dockerfile
         ports: 
-        - 4444:4444
+        - 9888:4444
         volumes:
           - $HOME/.vscode-server/extensions:/root/.vscode-server/extensions:rw
