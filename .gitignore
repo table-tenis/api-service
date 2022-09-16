@@ -4,3 +4,9 @@ account_service/account_manager/__pycache*
 account_service/account_manager/__init__.py
 account_service/account_manager/*/__init__.py
 account_service/account_manager/test*
+enterprise_service/enterprise_manager/*/__pycache*
+enterprise_service/enterprise_manager/__pycache*
+enterprise_service/enterprise_manager/__init__.py
+enterprise_service/enterprise_manager/*/__init__.py
+enterprise_service/enterprise_manager/test*
+enterprise_service/enterprise_manager/redis_list*

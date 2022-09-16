@@ -1,0 +1,12 @@
+    version: '3.5'
+
+    services:
+      server:
+        image: dat.local:5001/enterprise_manager:latest
+        build:
+          context: .
+          dockerfile: Dockerfile
+        ports: 
+        - 9889:4444
+        volumes:
+          - $HOME/.vscode-server/extensions:/root/.vscode-server/extensions:rw
