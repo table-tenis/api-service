@@ -16,6 +16,28 @@
 ```
 python3 -m pip install -r requirements.txt
 ```
+### **Install Valkka For Discovery Web Service (Camera)**
+```
+sudo apt-add-repository ppa:sampsa-riikonen/valkka
+sudo apt-get update
+sudo apt-get install valkka
+python -m pip install zeep
+```
+- **Dependencies:**
+```
+sudo apt-get install git build-essential libc6-dev yasm cmake pkg-config swig libglew-dev mesa-common-dev python3-dev python3-numpy libasound2-dev libssl-dev coreutils valgrind pkg-config
+```
+- **resource** : [github](https://github.com/elsampsa/valkka-core), [docs](https://valkka.readthedocs.io/en/latest/onvif.html).
+### **Install Python-Onvif For Get Web Service Profile (Camera)**
+```
+git clone https://github.com/FalkTannhaeuser/python-onvif-zeep.git
+cd python-onvif-zeep && python setup.py install
+```
+- **Alternatively, you can run:**
+```
+python -m pip install --upgrade onvif_zeep
+```
+- **resource** : [github](https://github.com/FalkTannhaeuser/python-onvif-zeep).
 ## **Structure Of Enterprise Manager Service**
 - *main.py:* to run service
 - *models.py:* contains object-relational mapping model for database access.
