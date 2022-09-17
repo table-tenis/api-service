@@ -13,6 +13,11 @@ class AccountInfo(AccountBaseModel):
 class AccountUpdatePassword(BaseModel):
     password: str
 
+class ACLUpdate(BaseModel):
+    tag_type: Optional[str]
+    tag_qualifier: Optional[str]
+    permissions: Optional[str]
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str

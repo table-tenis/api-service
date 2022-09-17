@@ -5,12 +5,45 @@ from sqlmodel import Session, select
 from sqlalchemy.orm import load_only
 from core.database import get_session
 from auth.authenticate import authenticate
-from models import Account, Privileges, Account_Privileges
+from models import Account, ACL
 from fastapi.security import (
     OAuth2PasswordRequestForm,
     SecurityScopes,
 )
 from json import loads
+
+SQLALCHEMY_ERROR = {
+    'l7de': 'UnsupportedCompilationError',
+    'xd1r': 'AwaitRequired',
+    'xd2s': 'MissingGreenlet',
+    'dbapi': 'DBAPIError',
+    'rvf5': 'InterfaceError',
+    '4xp6': 'DatabaseError',
+    '9h9h': 'DataError',
+    'e3q8': 'OperationalError',
+    'gkpj': 'IntegrityError',
+    '2j85': 'InternalError',
+    'f405': 'ProgrammingError',
+    'tw8g': 'NotSupportedError'
+}
+SQLALCHEMY_ERROR_DETAIL = {
+    'l7de': 'Raised when an operation is not supported by the given compiler',
+    'xd1r': 'Error raised by the async greenlet spawn if no async operation was awaited when it required one',
+    'xd2s': 'Error raised by the async greenlet await\_ if called while not inside the greenlet spawn context',
+    'dbapi': 'Raised when the execution of a database operation fails',
+    'rvf5': 'Raised when the Interface execution of a database operation fails',
+    '4xp6': 'Raised when the Database execution of a database operation fails',
+    '9h9h': 'Raised when the Data execution of a database operation fails',
+    'e3q8': 'Raised when the Operational execution of a database operation fails',
+    'gkpj': 'Raised when the Integrity execution of a database operation fails',
+    '2j85': 'Raised when the Internal execution of a database operation fails',
+    'f405': 'Raised when the Programming execution of a database operation fails',
+    'tw8g': 'Raised when the Programming execution of a database operation fails'
+}
+
+def get_error(e):
+    return {'type': SQLALCHEMY_ERROR.get(e.code), 'detail': SQLALCHEMY_ERROR_DETAIL.get(e.code),
+                'error': e._message()}
 class CommonQueryParams:
     def __init__(self, limit: int = Query(default=None, description="set limit number account's username to retrieve", gt=0),
                                         sort: str = Query(default=None, regex="^[+-].*"),
@@ -26,205 +59,69 @@ class Authorization:
     def __init__(self, request: Request, security_scopes: SecurityScopes, 
                  auth: dict = Depends(authenticate)) -> None:
         self.scopes = security_scopes.scopes
-        self.autho = loads(auth['decoded_token']['authorization'])
+        self.token = auth['token']
+        self.authorization = loads(auth['decoded_token']['authorization'])
         self.username = auth.get('decoded_token').get('username')
-        self.is_root = self.autho['is_root']
-        print(self.autho)
+        self.expires = auth.get('decoded_token').get('expires')
+        self.is_root = self.authorization['is_root']
+        self.key = []
         if 'root' in self.scopes and self.is_root == False:
             raise HTTPException(
-                status_code = status.HTTP_401_UNAUTHORIZED,
+                status_code = status.HTTP_403_FORBIDDEN,
                 detail = "Permission Denied!"
-            )   
-        
+            )
+        if self.is_root:
+            self.key.append('*')
+        if ('root' not in self.scopes) and (not self.is_root) and (len(self.scopes) > 0):
+            # find all key this account can access
+            acls = self.authorization['acl'].split('|')
+            tag_type = self.scopes[0]
+            permission_required = self.scopes[1]
+            acl = ''
+            for i in range(len(acls)):
+                if tag_type == acls[i].split(':')[0]:
+                    acl = acls[i]
+                    break
+            if acl != '':
+                acl_accquired = acl.split(':')
+                tag_qualifier_accquired = acl_accquired[1].split(',')
+                permissions_accquired = acl_accquired[2].split(',')
+                for i in range(len(permissions_accquired)):
+                    if permission_required in permissions_accquired[i] or 'admin' == permissions_accquired[i]:
+                        self.key.append(tag_qualifier_accquired[i])
+                self.key = [tuple(tag_qualifier.split('.')) for tag_qualifier in self.key]
+            
+            # print("key = ", self.key, ", acl = ", acl)
+
 def get_authorization(username: str, session):
     account = session.get(Account, username)
     authorization = {}
     if account.is_root:
         authorization['is_root'] = True
+        return authorization
     else:
         authorization['is_root'] = False
+    acl_list = []
+    statement = select(ACL).where(ACL.username == username)
+    acls = session.execute(statement).all()
+    tag_type_list = []
+    tag_qualifier_list = []
+    permissions_list = []
+    for acl in acls:
+        if acl[0].tag_type not in tag_type_list:
+            tag_type_list.append(acl[0].tag_type)
+            tag_qualifier_list.append(acl[0].tag_qualifier)
+            permissions_list.append(acl[0].permissions)
+        else:
+            index = tag_type_list.index(acl[0].tag_type)
+            tag_qualifier_list[index] += "," + acl[0].tag_qualifier
+            permissions_list[index] += "," + acl[0].permissions
+    for i in range(len(tag_type_list)):
+        acl_list.append(tag_type_list[i]+":"+tag_qualifier_list[i]+":"+permissions_list[i])
+    authorization['acl'] = "|".join(acl_list)
+    # print("acl_list = ", acl_list)
+    # print("authorization['acl'] = ", authorization['acl'])
     return authorization
-class Permission:
-    privileges: list # List of privileges from database
-    unique_permisson: list  # List of Permissons
-    unique_permisson_suited: list  # List of Permissons
-    permission_action: dict # Dict of Permissions and its action. Like {"enterprise:1.staff" : ['read', 'create', 'delete', 'update']}
-    unique_permisson_full: list
-    permissions_id: dict
-    def __init__(self, request: Request, security_scopes: SecurityScopes, session = Depends(get_session), user_auth: dict = Depends(authenticate)) -> None:
-        self.session = session 
-        self.privileges = []
-        self.unique_permisson = []
-        self.unique_permisson_suited = []
-        self.permission_action = {}
-        self.unique_permisson_full = []
-        self.scopes = security_scopes.scopes
-        self.scopes_permission = security_scopes.scopes[:-1]
-        self.action_require = security_scopes.scopes[-1]
-        self.permissions_id = {}
-        self.username = user_auth.get("decoded_token").get("username")
-        # self.expires = user_auth.get("decoded_token").get("expires")
-        account = self.session.get(Account, self.username)
-        if account.is_root:
-            self.is_root = True
-        else:
-            self.is_root = False
-           
-        """ Admin account always pass permission. """ 
-        if not self.is_root:
-            """ Verify Permission """
-            self.permisson_verify(request) 
-                    
-    def permisson_verify(self, request: Request):
-        if len(self.scopes) == 0:
-            return
-        
-        if "admin" in self.scopes:
-            raise HTTPException(
-                status_code = status.HTTP_401_UNAUTHORIZED,
-                detail = "Permission Denied!"
-            )
-        else:
-            """ Verify permission from account that is not admin"""
-            self.privileges = []
-            statement = select([Account_Privileges.privilege_name, Privileges.description]).select_from(Privileges).join(
-                Account_Privileges, Account_Privileges.privilege_name == Privileges.privilege_name).where(Account_Privileges.username == self.username)
-            privileges_list = self.session.execute(statement).all()
-            if len(privileges_list) == 0:
-                raise HTTPException(
-                    status_code = status.HTTP_401_UNAUTHORIZED,
-                    detail = "Permission Denied!"
-                )
-            self.privileges = [{"privilege_name": priv[0], "description": priv[1]} for priv in privileges_list]
-            print("---------------- privileges = ", self.privileges)
-            permisson_action_separates = []
-            permissons = []
-            for privilege in self.privileges:
-                # priv_name = privilege["privilege_name"].split("_")[1]
-                try:
-                    list_str_priv = privilege["privilege_name"].split(".")
-                    action = list_str_priv[-1]
-                    priv_type = ".".join(list_str_priv[:-1])
-                    permisson_action_separates.append({priv_type: action})
-                    permissons.append(priv_type)
-                except ValueError as e:
-                    print("Permission wrong type: ", e)
-            for permission in permissons:
-                if permission not in self.unique_permisson:
-                    self.unique_permisson.append(permission)
-                    if len(permission.split(".")) == len(self.scopes_permission):
-                        self.unique_permisson_suited.append(permission)
-                           
-            for per in self.unique_permisson:
-                self.permission_action[per] = [per_act.get(per) for per_act in permisson_action_separates 
-                                               if (per_act.get(per) != None and per_act.get(per) != "")]
-                self.unique_permisson_full.append(per + "." + ".".join(self.permission_action[per]))
-                
-            """ After get dict of permission and action. """
-            """ Get permission match to scope's permisson. """
-            print("==================== permission_action = ", self.permission_action)
-            print("==================== unique_permisson_suited = ", self.unique_permisson_suited)
-            print("==================== unique_permisson_full = ", self.unique_permisson_full)
-            if len(self.unique_permisson_suited) == 0:
-                raise HTTPException(
-                    status_code = status.HTTP_401_UNAUTHORIZED,
-                    detail = "Permission Denied!"
-                )
-                
-            permission_match_list: list = []
-            for permission in self.unique_permisson_suited:
-                separate_match = []
-                for scope in self.scopes_permission:
-                    if scope in permission:
-                        separate_match.append(True)
-                    else:
-                        separate_match.append(False)
-                if not False in separate_match:
-                    permission_match_list.append(permission)
-                
-            if len(permission_match_list) == 0:
-                raise HTTPException(
-                    status_code = status.HTTP_401_UNAUTHORIZED,
-                    detail = "Permission Denied!"
-                )
-            
-            permission_action_match_list: list = []
-            for permission_match in permission_match_list:
-                actions = self.permission_action.get(permission_match)
-                print("================ permission_match = ", permission_match)
-                print("================ actions = ", actions)
-                if "all" not in actions and "*" not in actions:   
-                    if self.action_require == "all" or self.action_require == "*":
-                        print("Not all or * in actions")
-                        continue
-                        
-                    elif (self.action_require == "read") and ("read" not in actions):
-                        continue
-                        
-                    elif (self.action_require == "create") and ("create" not in actions):
-                        continue
-                        
-                    elif (self.action_require == "update") and ("update" not in actions):
-                        continue
-                        
-                    elif (self.action_require == "delete") and ("delete" not in actions):
-                        continue
-                permission_action_match_list.append(permission_match)
-                
-            if len(permission_action_match_list) == 0:
-                raise HTTPException(
-                    status_code = status.HTTP_401_UNAUTHORIZED,
-                    detail = "Permission Denied!"
-                )
-        
-            permission_id = {}
-            print("permission_action_match_list = ", permission_action_match_list)
-            for permission_action_match in permission_action_match_list:
-                separate_per_list = permission_action_match.split(".")
-                for separate_per in separate_per_list:
-                    if ":" in separate_per:
-                        per_name = separate_per.split(":")[0]
-                        id = separate_per.split(":")[1]
-                        if permission_id.get(per_name) == None:
-                            permission_id[per_name] = [id]
-                        else:
-                            permission_id[per_name].append(id)
-            permission_match_id_str = []
-            for key, value in permission_id.items():
-                permission_match_id_str.append(key + "." + ".".join(value))
-                
-            for permission_match_id in permission_match_id_str:
-                if "enterprise" in permission_match_id:
-                    self.permissions_id["enterprise"] = [int(i) for i in permission_match_id.split(".")[1:]]
-                    
-                if "site" in permission_match_id:
-                    self.permissions_id["site"] = [int(i) for i in permission_match_id.split(".")[1:]]
-                
-            """ Final step. Verify path params if it included in endpoint """ 
-            print("permission_id = ", permission_id)
-            path_params = request.path_params
-            if path_params.get("enterprise_id") != None:
-                if not self.match_path_param("enterprise", path_params.get("enterprise_id"), permission_match_id_str):
-                    raise HTTPException(
-                    status_code = status.HTTP_401_UNAUTHORIZED,
-                    detail = "Permission Denied!"
-                )
-                print("Enterprise Id Match")
-                
-            if path_params.get("site_id") != None:
-                if not self.match_path_param("site", path_params.get("site_id"), permission_match_id_str):
-                    raise HTTPException(
-                    status_code = status.HTTP_401_UNAUTHORIZED,
-                    detail = "Permission Denied!"
-                )
-                print("Site Id Match")
-                
-    def match_path_param(self, pattern, value, permission_match_id_str):
-        for permission_match_id in permission_match_id_str:
-            if pattern in permission_match_id:
-                if value in permission_match_id.split(".")[1:]: 
-                    return True
-        return False
             
 
             

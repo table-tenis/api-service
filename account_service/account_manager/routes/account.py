@@ -1,5 +1,5 @@
 from time import time
-from fastapi import APIRouter, HTTPException, status, Depends, Response, Security
+from fastapi import APIRouter, HTTPException, status, Depends, Response, Security, Query
 from fastapi.security import OAuth2PasswordRequestForm
 from typing import List
 from sqlmodel import select
@@ -11,7 +11,6 @@ from schemas import TokenResponse, AccountInfo, AccountBaseModel, AccountUpdateP
 from core.database import get_session
 from auth.hash_password import HashPassword
 from auth.jwt_handler import create_access_token
-from auth.authenticate import authenticate
 
 from dependencies import Authorization, get_authorization, CommonQueryParams
 from core.database import redis_db
@@ -19,23 +18,23 @@ account_router = APIRouter( tags=["Account"] )
 
 hash_password = HashPassword()
 
-""" Signin to access system info. """
-@account_router.get("/auth")
-async def auth(user_auth: dict = Depends(authenticate),
-               autho: Authorization = Security(scopes=['root'])) -> dict:
-    print(autho.autho)
-    return {"Authenticate" : "OK"}
+# """ Signin to access system info. """
+# @account_router.get("/auth")
+# async def auth(user_auth: dict = Depends(authenticate),
+#                authorization: Authorization = Security(scopes=['root'])) -> dict:
+#     print(authorization.authorization)
+#     return {"Authenticate" : "OK"}
 
 """ Add a new account. Aplly for root user. """
 @account_router.post("/")
 async def add_a_new_account(singup_account: Account, 
-                            autho: Authorization = Security(scopes=["root"]),
+                            authorizaion: Authorization = Security(scopes=["root"]),
                             session = Depends(get_session)) -> dict:
     account = session.execute(select(Account).where(Account.username == singup_account.username)).first()
     if account:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Account with supplied username exists"
+            detail="Account Supplied Username Is Existed"
         )
     hashed_password = hash_password.create_hash(singup_account.password)
     singup_account.password = hashed_password
@@ -43,17 +42,18 @@ async def add_a_new_account(singup_account: Account,
     session.commit()
     session.refresh(singup_account)
     return {
-        "message": "New Account successfully registered!"
+        "Response": "New Account Successfully Registered!"
     }
 
 """ Signin to access system info. """
 @account_router.post("/login", response_model=TokenResponse)
-async def account_login(account: OAuth2PasswordRequestForm = Depends(), session = Depends(get_session)) -> dict:
+async def account_login(account: OAuth2PasswordRequestForm = Depends(), 
+                        session = Depends(get_session)) -> dict:
     account_exist = session.get(Account, account.username)
     if not account_exist:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Account with username does not exist."
+            detail="Account With Username Does Not Exist."
         )
     if hash_password.verify_hash(account.password, account_exist.password):
         access_token = create_access_token(account_exist.username, get_authorization(account_exist.username, session))
@@ -64,26 +64,38 @@ async def account_login(account: OAuth2PasswordRequestForm = Depends(), session 
 
     raise HTTPException(
         status_code = status.HTTP_401_UNAUTHORIZED,
-        detail = "Invalid details passed."
+        detail = "Password Wrong."
     )
 
 """ Signin to access system info. """
 @account_router.get("/logout")
-async def account_logout(auth: dict = Depends(authenticate)) -> dict:
-    redis_db.set(auth.get("token"), auth.get("decoded_token").get("username"))
-    expire_time = auth.get("decoded_token").get("expires") - time()
+async def account_logout(authorization: Authorization = Security()) -> dict:
+    redis_db.set(authorization.token, authorization.username)
+    expire_time = authorization.expires - time()
     if expire_time > 0:
-        redis_db.expire(auth.get("token"), int(expire_time))
+        redis_db.expire(authorization.token, int(expire_time))
     return {
-        "Logout success"
+        "Logout Success"
     }
     
 """ Get all account's username info. Apply for root user. """
 @account_router.get("/", response_model=List[AccountInfo])
-async def get_accounts(autho: Authorization = Security(scopes=["root"]),
+async def get_accounts(username: str = Query(default=None),
+                        authorization: Authorization = Security(),
                         query_params: CommonQueryParams = Depends(),
                         session = Depends(get_session)):
     statement = select(Account)
+    if username != None:
+        if not authorization.is_root and username != authorization.username:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Username Does Not Match"
+            )
+        statement = statement.where(Account.username == username)
+    elif username == None and not authorization.is_root:
+        # Just retrieve account for only this sign-in account
+        statement = statement.where(Account.username == authorization.username)
+
     if query_params.limit != None and query_params.limit > 0:
         statement = statement.limit(query_params.limit)
     if query_params.sort != None:
@@ -98,31 +110,14 @@ async def get_accounts(autho: Authorization = Security(scopes=["root"]),
     for account in accounts:
         list_account.append(account[0])
     return list_account
-
-""" Get account info itself. """
-@account_router.get("/{username}", response_model=AccountInfo)
-async def get_account_info(username: str, autho: Authorization = Security(scopes=[]),
-                           session = Depends(get_session)):
-    if username == autho.username or autho.is_root:
-        account_exist = session.get(Account, username)
-        if account_exist:
-            return account_exist
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Account with supplied username does not exist"
-        )
-    else:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Username does not match athentication"
-        )
    
 """ Update account info itself. """ 
-@account_router.put("/{username}", response_model=AccountInfo)
-async def update_account_info(username: str, body: AccountBaseModel, 
-                              autho: Authorization = Security(),
+@account_router.put("/", response_model=AccountInfo)
+async def update_account_info(body: AccountBaseModel, 
+                              username: str = Query(),
+                              authorization: Authorization = Security(),
                               session = Depends(get_session)) -> Account:
-    if username == autho.username or autho.is_root:
+    if username == authorization.username or authorization.is_root:
         account_exist = session.get(Account, username)
         if account_exist:
             account_data = body.dict(exclude_unset=True)
@@ -135,20 +130,21 @@ async def update_account_info(username: str, body: AccountBaseModel,
             return account_exist 
         raise HTTPException(
             status_code = status.HTTP_404_NOT_FOUND,
-            detail="Account with supplied username does not exist"
+            detail="Account Supplied Username Does Not Exist"
         )
     else:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Username does not match athentication"
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Permission Denied"
         )
 
 """ Change account password itself. """
-@account_router.put("/{username}/changepassword", response_model=AccountInfo)
-async def change_account_password(username: str, body: AccountUpdatePassword, 
-                                  autho: Authorization = Security(),
-                                  session = Depends(get_session)) -> Account:
-    if username == autho.username or autho.is_root:
+@account_router.put("/changepassword")
+async def change_account_password(body: AccountUpdatePassword, 
+                                  username: str = Query(),
+                                  authorization: Authorization = Security(), 
+                                  session = Depends(get_session)):
+    if username == authorization.username or authorization.is_root:
         account_exist = session.get(Account, username)
         if account_exist:
             account_data = body.dict(exclude_unset=True)
@@ -160,29 +156,30 @@ async def change_account_password(username: str, body: AccountUpdatePassword,
             session.add(account_exist)
             session.commit()
             session.refresh(account_exist)
-            return account_exist    
+            return {"Response": "Changed Password Success"}    
         raise HTTPException(
             status_code = status.HTTP_404_NOT_FOUND,
-            detail="Account with supplied username does not exist"
+            detail="Account Supplied Username Does Not Exist"
         )
     else:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Username does not match athentication"
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Permission Denied"
         )
         
 """ Delete an account. Apply for root user. """
-@account_router.delete("/{username}")
-async def delete_account(username: str, autho: Authorization = Security(scopes=["root"]),
+@account_router.delete("/")
+async def delete_account(username: str = Query(), 
+                         authorization: Authorization = Security(scopes=["root"]),
                          session = Depends(get_session)):
     account = session.get(Account, username)
     if account:
         session.delete(account)
         session.commit()
         return {
-            "message": "Account deleted successfully"
+            "Response": "Account Deleted Successfully"
         }
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
-        detail="Account with supplied username does not exist"
+        detail="Account Supplied Username Does Not Exist"
     )

@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request
 
 import time
 from routes.account import account_router
-from routes.admin import admin_router
+from routes.acl import acl_router
 import uvicorn
 import hypercorn
 description = \
@@ -26,7 +26,7 @@ async def add_process_time_header(request: Request, call_next):
     return response
 
 app.include_router(account_router, prefix="/api/xface/v1/accounts")
-app.include_router(admin_router, prefix="/api/xface/v1/accounts/admin")
+app.include_router(acl_router, prefix="/api/xface/v1/acls")
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="172.21.100.174", port=9082, reload=True)
+    uvicorn.run("main:app", port=9082, reload=True)
 

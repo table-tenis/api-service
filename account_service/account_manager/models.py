@@ -23,43 +23,22 @@ class Account(AccountBase, table=True):
                 "is_root": False
             }
         }
-      
-class PrivilegeBase(SQLModel):
-    description: Optional[str]
-    
-class Privileges(PrivilegeBase, table=True):
-    privilege_name: str = Field(primary_key=True)
-    class Config:
-        schema_extra = {
-            "example": {
-                "privilege_name": "P1",
-                "description": "access staffs"
-            }
-        }
 
-class PrivilegeUpdate(PrivilegeBase):
-    pass
-   
-class Account_Privileges(SQLModel, table=True):
-    username: str = Field(primary_key=True)
-    privilege_name: str = Field(primary_key=True)
-    class Config:
-        schema_extra = {
-            "example": {
-                "username": "tainp",
-                "privilege_name": "x_priv_staff"
-            }
-        }
-        
-class AccountPrivilegesInfo(SQLModel):
+class ACLBase(SQLModel):
     username: str
-    privilege_name: str
-    description: str
+    tag_type: str
+    tag_qualifier: Optional[str]
+    permissions: str
+
+class ACL(ACLBase, table=True):
+    id: int = Field(default=None, primary_key=True)
     class Config:
         schema_extra = {
             "example": {
-                "username": "tainp",
-                "privilege_name": "x_priv_staff",
-                "description": ""
+                "id": "Default = None, auto increase",
+                "username": "admin",
+                "tag_type": "enterprise",
+                "tag_qualifier": "1",
+                "permissions": "admin"
             }
         }
