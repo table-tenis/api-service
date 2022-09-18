@@ -8,7 +8,7 @@ async def authenticate(request: Request, temp: str = Depends(oauth2_scheme)) -> 
     authorization = request.headers.get('authorization')
     if not authorization:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Sign in for access"
         )
     if "Bearer" not in authorization:

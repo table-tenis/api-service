@@ -10,43 +10,69 @@ from sqlalchemy.orm import load_only
 
 from models import Enterprise, EnterpriseBase
 
-from dependencies import CommonQueryParams
-from core.database import redis_db, get_session, engine
-from auth.authenticate import authenticate, oauth2_scheme
+from dependencies import CommonQueryParams, Authorization
+from core.database import redis_db, get_session, engine, db
 
 enterprise_router = APIRouter(tags=["Enterprise"])
 
-# session = get_session()
+class EnterpriseValid:
+    def __init__(self, statement=None, id = None):
+        self.statement = statement
+        self.id = id
+
+def verify_enterprise_authorization(key, enterprise_valid: EnterpriseValid):
+    if "*" not in key:
+        enterprise_access_ids = []
+        for tag_qualifier in key:
+            enterprise_access_ids.append(tag_qualifier[0])
+
+        if enterprise_valid.id != None and enterprise_valid.id not in enterprise_access_ids:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail = "Permission Denied"
+            )
+        if enterprise_valid.id == None and enterprise_valid.statement != None:
+            enterprise_valid.statement = enterprise_valid.statement.where(Enterprise.id.in_(enterprise_access_ids))
+    return enterprise_valid
+
 """ Add new enterprise. """
 @enterprise_router.post("/")
-async def add_a_new_enterprise(enterprise: Enterprise, session = Depends(get_session)) -> dict:
+async def add_a_new_enterprise(enterprise: Enterprise,
+                            #    authorization: Authorization = Security(scopes=["root"]),
+                               session = Depends(get_session)) -> dict:
     if enterprise.id != None:
-        enterprise_exist = session.get(Enterprise, enterprise.id)
+        enterprise_exist = db.get_by_id(session, select(Enterprise).where(Enterprise.id == enterprise.id))
         if enterprise_exist:
             raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Enterprise with id exist."
+            detail="Enterprise Supplied Id Is Existed."
         )
-        enterprise_exist = session.get(Enterprise, enterprise.enterprise_code)
+        enterprise_exist = db.get_by_id(session, select(Enterprise).where(Enterprise.enterprise_code == enterprise.enterprise_code))
         if enterprise_exist:
             raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Enterprise with enterprise_code exist."
+            detail="Enterprise Supplied Enterprise_code Is Existed."
         )
-    session.add(enterprise)
-    session.commit()
-    response = {
-        "message": "New Enterprise successfully registered!",
-        "enterprise_id": enterprise.id
+    enterprise = db.add(session, enterprise)
+    return {
+        "Response": "New Enterprise Successfully Registered!",
+        "Enterprise_Id": enterprise.id
     }
-    session.refresh(enterprise)
-    return response
 
 """ Get all enterprise info. Apply for root user. """
 @enterprise_router.get("/")
-async def get_enterprises(id: int = Query(default=None), enterprise_code: str = Query(default=None),
-                          query_params: CommonQueryParams = Depends(), session = Depends(get_session)):
+async def get_enterprises(id: int = Query(default=None), 
+                            enterprise_code: str = Query(default=None),
+                            query_params: CommonQueryParams = Depends(), 
+                            authorization: Authorization = Security(scopes=["enterprise", "r"]),
+                            session = Depends(get_session)):
     statement = select(Enterprise)
+    # Some Resouces Match, And Not Root Account.
+    # Retrieve Resources Belong To This Account
+    enterprise_valid = EnterpriseValid(statement=statement, id=id)
+    enterprise_valid = verify_enterprise_authorization(key=authorization.key, enterprise_valid=enterprise_valid)
+    statement = enterprise_valid.statement
+
     if id != None:
         statement = statement.where(Enterprise.id == id)
     if enterprise_code != None:
@@ -60,45 +86,49 @@ async def get_enterprises(id: int = Query(default=None), enterprise_code: str = 
             statement = statement.order_by(Enterprise.enterprise_code.asc())
     if query_params.limit != None and query_params.limit > 0:
         statement = statement.limit(query_params.limit)
-    enterprises = session.execute(statement).all()
+
+    enterprises = db.get_all(session, statement)
     if not enterprises:
         return {"Response": "Not Found!"}
-    enter_list = []
-    for enter in enterprises:
-        enter_list.append(enter[0])
-    return enter_list
+    return [enter[0] for enter in enterprises]
 
 """ Update enterprise info. Apply for root user """ 
-@enterprise_router.put("/{id}", response_model=Enterprise)
-async def update_enterprise_info(id: int, body: EnterpriseBase, 
-                                      session = Depends(get_session)):
-    enterprise = session.get(Enterprise, id)
+@enterprise_router.put("/", response_model=Enterprise)
+async def update_enterprise_info(body: EnterpriseBase, 
+                                id: int = Query(), 
+                                authorization: Authorization = Security(scopes=["enterprise", "u"]),
+                                session = Depends(get_session)):
+    enterprise_valid = EnterpriseValid(id=id)
+    enterprise_valid = verify_enterprise_authorization(key=authorization.key, enterprise_valid=enterprise_valid)
+
+    enterprise = db.get_by_id(session, select(Enterprise).where(Enterprise.id == id))
     if enterprise:
         enterprise_data = body.dict(exclude_unset=True)
         for key, value in enterprise_data.items():
             setattr(enterprise, key, value)
-            
-        session.add(enterprise)
-        session.commit()
-        session.refresh(enterprise)
+        enterprise = db.add(session, enterprise)
         return enterprise
         
     raise HTTPException(
         status_code = status.HTTP_404_NOT_FOUND,
-        detail="Enterprise with supplied id does not exist"
+        detail="Enterprise Supplied Id Does Not Exist"
     )
     
-""" Delete a enterprise. Apply for root user. """
-@enterprise_router.delete("/{id}")
-async def delete_a_enterprise(id: int, session = Depends(get_session)):
-    enterprise = session.get(Enterprise, id)
+""" Delete an enterprise. Apply for root user. """
+@enterprise_router.delete("/")
+async def delete_a_enterprise(id: int = Query(), 
+                                authorization: Authorization = Security(scopes=["enterprise", "d"]),
+                                session = Depends(get_session)):
+    enterprise_valid = EnterpriseValid(id=id)
+    enterprise_valid = verify_enterprise_authorization(key=authorization.key, enterprise_valid=enterprise_valid)
+    
+    enterprise = db.get_by_id(session, select(Enterprise).where(Enterprise.id == id))
     if enterprise:
-        session.delete(enterprise)
-        session.commit()
+        db.delete(session, enterprise)
         return {
-            "message": "Enterprise deleted successfully"
+            "Response": "Enterprise Deleted Successfully"
         }      
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
-        detail="Enterprise does not exist"
+        detail="Enterprise Supplied Id Does Not Exist"
     )

@@ -9,6 +9,10 @@
 - pydantic
 - redis
 - argon2
+- rsa
+- mariadb
+- python-jose
+- netifaces
 - dynaconf
 - valkka
 - python-onvif

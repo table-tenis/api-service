@@ -81,7 +81,7 @@ async def account_logout(authorization: Authorization = Security()) -> dict:
 """ Get all account's username info. Apply for root user. """
 @account_router.get("/", response_model=List[AccountInfo])
 async def get_accounts(username: str = Query(default=None),
-                        authorization: Authorization = Security(),
+                        authorization: Authorization = Security(scopes=['enterprise.site', 'r']),
                         query_params: CommonQueryParams = Depends(),
                         session = Depends(get_session)):
     statement = select(Account)

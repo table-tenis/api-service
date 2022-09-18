@@ -11,8 +11,7 @@ from sqlalchemy.orm import load_only
 from models import Site, SiteBase
 from schemas import SiteUpdate
 from dependencies import CommonQueryParams
-from core.database import redis_db, get_session, engine
-from auth.authenticate import authenticate, oauth2_scheme
+from core.database import redis_db, get_session, engine, db
 
 site_router = APIRouter(tags=["Site"])
 
@@ -21,27 +20,28 @@ site_router = APIRouter(tags=["Site"])
 @site_router.post("/")
 async def add_a_new_site(site: Site, session = Depends(get_session)) -> dict:
     if site.id != None:
-        enterprise_exist = session.get(Site, site.id)
+        enterprise_exist = db.get_by_id(session, select(Site).where(Site.id == site.id))
         if enterprise_exist:
             raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Site with id exist."
-        )
-    session.add(site)
-    session.commit()
-    response = {
-        "message": "New Site successfully registered!",
-        "site_id": site.id
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Site Supplied Id Is Existed."
+            )
+    site = db.add(session, site)
+    return {
+        "Response": "New Site Successfully Registered!",
+        "Site_Id": site.id
     }
-    session.refresh(site)
-    return response
 
 """ Get site info by site name or side id. Apply for root user. """
 @site_router.get("/")
-async def get_site_by_fields(id: int = Query(default=None), name: str = Query(default=None),
-                             common_params: CommonQueryParams = Depends(),
-                          session = Depends(get_session)):
+async def get_site_by_fields(enterprise_id: int = Query(default=None),
+                            id: int = Query(default=None), 
+                            name: str = Query(default=None),
+                            common_params: CommonQueryParams = Depends(),
+                            session = Depends(get_session)):
     statement = select(Site)
+    if enterprise_id != None:
+        statement = statement.where(Site.enterprise_id == enterprise_id)
     if id != None:
         statement = statement.where(Site.id == id)
     if name != None:
@@ -55,66 +55,46 @@ async def get_site_by_fields(id: int = Query(default=None), name: str = Query(de
             statement = statement.order_by(Site.name.asc())
     if common_params.limit != None and common_params.limit > 0:
         statement = statement.limit(common_params.limit)
-    sites = session.execute(statement).all()
+    sites = db.get_all(session, statement)
     if not sites:
         return {"Response" : "Not Found!"}
-    site_list = []
-    for site in sites:
-        site_list.append(site[0])
-    return site_list
-
-""" Get all site info, belong to an enterprise """
-@site_router.get("/enterprises/{enterprise_id}")
-async def get_site_enterprise(enterprise_id: int, query_params: CommonQueryParams = Depends(), session = Depends(get_session)):
-    statement = select(Site).where(Site.enterprise_id == enterprise_id)
-    if query_params.search != None:
-        statement = statement.filter(Site.name.contains(query_params.search))
-    if query_params.sort != None:
-        if query_params.sort[0] == "-":
-            statement = statement.order_by(Site.name.desc())
-        elif query_params.sort[0] == "+":
-            statement = statement.order_by(Site.name.asc())
-    if query_params.limit != None and query_params.limit > 0:
-        statement = statement.limit(query_params.limit)
-    sites = session.execute(statement).all()
-    if not sites:
-        return {"Response": "Not Found!"}
-    site_list = []
-    for site in sites:
-        site_list.append(site[0])
-    return site_list
+    return [site[0] for site in sites]
 
 """ Update site info. Apply for root user """ 
-@site_router.put("/{id}", response_model=Site)
-async def update_site_info(id: int, body: SiteUpdate, 
-                                      session = Depends(get_session)):
-    site = session.get(Site, id)
+@site_router.put("/", response_model=Site)
+async def update_site_info(body: SiteUpdate, 
+                            id: int = Query(), 
+                            session = Depends(get_session)):
+    site = db.get_by_id(session, select(Site).where(Site.id == id))
     if site:
         site_data = body.dict(exclude_unset=True)
         for key, value in site_data.items():
             setattr(site, key, value)
             
-        session.add(site)
-        session.commit()
-        session.refresh(site)
+        try:
+            site = db.add(session, site)
+        except Exception as e:
+            raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail = e._message()
+        )
         return site
         
     raise HTTPException(
         status_code = status.HTTP_404_NOT_FOUND,
-        detail="Site with supplied id does not exist"
+        detail="Site Supplied Id Does Not Exist"
     )
     
 """ Delete a site. Apply for root user. """
-@site_router.delete("/{id}")
-async def delete_a_site(id: int, session = Depends(get_session)):
-    site = session.get(Site, id)
+@site_router.delete("/")
+async def delete_a_site(id: int = Query(), session = Depends(get_session)):
+    site = db.get_by_id(session, select(Site).where(Site.id == id))
     if site:
-        session.delete(site)
-        session.commit()
+        db.delete(session, site)
         return {
-            "message": "Site deleted successfully"
+            "Response": "Site Deleted Successfully"
         }      
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
-        detail="Site does not exist"
+        detail="Site Does Not Exist"
     )

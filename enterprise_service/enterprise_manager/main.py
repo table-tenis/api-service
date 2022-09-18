@@ -40,5 +40,5 @@ app.include_router(camera_router, prefix="/api/xface/v1/cameras")
 app.include_router(site_router, prefix="/api/xface/v1/sites")
 if __name__ == "__main__":
     pass
-    uvicorn.run("main:app", host="172.21.100.174", port=9083, reload=True)
+    uvicorn.run("main:app", port=9083, reload=True)
 
