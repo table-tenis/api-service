@@ -58,6 +58,7 @@ class DataBase:
         try:
             return session.execute(statement).all()
         except Exception as e:
+            session.rollback()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail = e._message()
@@ -70,6 +71,7 @@ class DataBase:
                 return orm_ojb[0][0]
             return orm_ojb
         except Exception as e:
+            session.rollback()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail = e._message()
@@ -82,6 +84,7 @@ class DataBase:
             session.refresh(orm_obj)
             return orm_obj
         except Exception as e:
+            session.rollback()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail = e._message()

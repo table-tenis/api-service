@@ -1,3 +1,4 @@
 username = "admin"
-port = 9900
-database = {user='root', password='root', host='127.0.0.1', port=3306, database_name='xface_system'}
+host = "172.21.100.174"
+port = 9083
+database = {user='root', password='root', host='172.21.100.174', port=3306, database_name='xface_system'}
