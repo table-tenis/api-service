@@ -34,11 +34,6 @@ sudo apt-get install git build-essential libc6-dev yasm cmake pkg-config swig li
 - **resource** : [github](https://github.com/elsampsa/valkka-core), [docs](https://valkka.readthedocs.io/en/latest/onvif.html).
 ### **Install Python-Onvif For Get Web Service Profile (Camera)**
 ```
-git clone https://github.com/FalkTannhaeuser/python-onvif-zeep.git
-cd python-onvif-zeep && python setup.py install
-```
-- **Alternatively, you can run:**
-```
 python -m pip install --upgrade onvif_zeep
 ```
 - **resource** : [github](https://github.com/FalkTannhaeuser/python-onvif-zeep).
@@ -87,36 +82,35 @@ docker-compose up -d
 ### **Link To Test API Endpoint**
 - http://172.21.100.174:9083/docs
 ### **Enterprise API Endpoints Paths**
-- ```/api/xface/v1/enterprises``` : POST an enterprise, GET all enterprise. GET method supports query parameters:
-  - id: to get enterprise by id.
-  - enterprise_code: to get enterprise by enterprise_code.
-  - sort, search to sort and match enterprise by enterprise_code.
-  - limit: to get limit number of enterprise in response.
-- ```/api/xface/v1/enterprises/{id}``` : this endpoint has path parameter **_id_**. PUT METHOD to update an enterprise information by id, DELETE METHOD to delete an enterprise by id.
+- ```/api/xface/v1/enterprises``` : POST an enterprise, GET enterprises, PUT an enterprise, DELETE an enterprise. 
+  - GET method supports query parameters:
+    - id: to get enterprise by id.
+    - enterprise_code: to get enterprise by enterprise_code.
+    - sort, search to sort and match enterprise by enterprise_code.
+    - limit: to get limit number of enterprise in response.
+  - PUT method requires *id* query parameter to update an enterprise:
+  - DELETE method requires *id* query parameter to delete an enterprise:
 ### **Site API Endpoints Paths**
-- ```/api/xface/v1/sites``` : POST a site, GET all site. GET method supports query parameters:
-  - id: to get site by id.
-  - name: to get site by name.
-  - sort, search to sort and match site by name.
-  - limit: to get limit number of site in response.
-- ```/api/xface/v1/sites/enterprises/{enterprise_id}``` : GET all site of an enterprise. GET method supports query parameters:
-  - sort, search to sort and match site by name.
-  - limit: to get limit number of site in response.
-- ```/api/xface/v1/sites/{id}``` : this endpoint has path parameter **_id_**. PUT METHOD to update a site information by id, DELETE METHOD to delete a site by id.
+- ```/api/xface/v1/sites``` : POST a site, GET sites, PUT a site, DELETE a site. 
+  - GET method supports query parameters:
+    - enterprise_id: to get sites belong to an enterprise id.
+    - id: to get site by id.
+    - name: to get site by name.
+    - sort, search to sort and match site by name.
+    - limit: to get limit number of site in response.
+  - PUT method requires *id* query parameter to update a site:
+  - DELETE method requires *id* query parameter to delete a site:
 ### **Camera API Endpoints Paths**
-- ```/api/xface/v1/cameras``` : POST a list of cameras, GET all camera. GET method supports query parameters:
-  - id: to get camera by id.
-  - name: to get camera by name.
-  - ip: to get camera by ip.
-  - description: to get camera by description.
-  - sort, search to sort and match site by name.
-  - limit: to get limit number of site in response.
-- ```/api/xface/v1/cameras/enterprises/{enterprise_id}``` : GET all camera of an enterprise. GET method supports query parameters:
-  - sort, search to sort and match site by name.
-  - limit: to get limit number of site in response.
-- ```/api/xface/v1/cameras/sites/{site_id}``` : GET all camera of a site. GET method supports query parameters:
-  - sort, search to sort and match site by name.
-  - limit: to get limit number of site in response.
+- ```/api/xface/v1/cameras``` : POST a list of cameras, GET cameras, PUT a camera, DELETE a camera. 
+  - GET method supports query parameters:
+    - enterprise_id: to get cameras belong to an enterprise id.
+    - site_id: to get cameras belong to a site id.
+    - id: to get camera by id.
+    - name: to get camera by name.
+    - ip: to get camera by ip.
+    - description: to get camera by description.
+    - sort, search to sort and match site by name.
+    - limit: to get limit number of site in response.
 - ```/api/xface/v1/cameras/profiles``` : GET profile of a camera. GET method requires ip address of camera as a query parameter:
   - ip : to get profiles of a ip address.
 - ```/api/xface/v1/cameras/discovery/local``` : GET METHOD to get discovery informations of all camera in the local network.
@@ -124,6 +118,5 @@ docker-compose up -d
   - ip : to discovery of a camera ip address.
 - ```/api/xface/v1/cameras/discovery/unreliable``` : Discovery a camera if it has not existed in database. GET METHOD requires ip address of camera to discovery as a query parameter:
   - ip : to discovery of a camera ip address.
-- ```/api/xface/v1/cameras/{id}``` : this endpoint has path parameter **_id_**. PUT METHOD to update a camera information by id, DELETE METHOD to delete a camera by id.
 
 
