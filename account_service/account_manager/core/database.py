@@ -4,6 +4,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from fastapi import HTTPException, status
 import redis
 # import mariadb
 import sys, os
@@ -49,3 +50,54 @@ def get_session():
 #         yield cur
 #         cur.close()
 #         conn.close()
+class DataBase:
+    def __init__(self):
+        pass
+
+    def get_all(self, session, statement):
+        try:
+            return session.execute(statement).all()
+        except Exception as e:
+            session.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail = e._message()
+            )
+
+    def get_by_id(self, session, statement):
+        try:
+            orm_ojb = session.execute(statement).all()
+            if orm_ojb:
+                return orm_ojb[0][0]
+            return orm_ojb
+        except Exception as e:
+            session.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail = e._message()
+            )
+
+    def add(self, session, orm_obj):
+        try:
+            session.add(orm_obj)
+            session.commit()
+            session.refresh(orm_obj)
+            return orm_obj
+        except Exception as e:
+            session.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail = e._message()
+            )
+
+    def delete(self, session, orm_obj):
+        try:
+            session.delete(orm_obj)
+            session.commit()
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail = e._message()
+            )
+
+db = DataBase()

@@ -13,7 +13,7 @@ from auth.hash_password import HashPassword
 from auth.jwt_handler import create_access_token
 
 from dependencies import Authorization, get_authorization, CommonQueryParams
-from core.database import redis_db
+from core.database import redis_db, db
 account_router = APIRouter( tags=["Account"] )
 
 hash_password = HashPassword()
@@ -30,7 +30,7 @@ hash_password = HashPassword()
 async def add_a_new_account(singup_account: Account, 
                             authorizaion: Authorization = Security(scopes=["root"]),
                             session = Depends(get_session)) -> dict:
-    account = session.execute(select(Account).where(Account.username == singup_account.username)).first()
+    account = db.get_by_id(session, select(Account).where(Account.username == singup_account.username))
     if account:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -38,9 +38,7 @@ async def add_a_new_account(singup_account: Account,
         )
     hashed_password = hash_password.create_hash(singup_account.password)
     singup_account.password = hashed_password
-    session.add(singup_account)
-    session.commit()
-    session.refresh(singup_account)
+    singup_account = db.add(singup_account)
     return {
         "Response": "New Account Successfully Registered!"
     }
@@ -49,7 +47,7 @@ async def add_a_new_account(singup_account: Account,
 @account_router.post("/login", response_model=TokenResponse)
 async def account_login(account: OAuth2PasswordRequestForm = Depends(), 
                         session = Depends(get_session)) -> dict:
-    account_exist = session.get(Account, account.username)
+    account_exist = db.get_by_id(session, select(Account).where(Account.username == account.username))
     if not account_exist:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -105,11 +103,11 @@ async def get_accounts(username: str = Query(default=None),
             statement = statement.order_by(Account.username.asc())
     if query_params.search != None:
         statement = statement.filter(Account.username.contains(query_params.search))
-    accounts = session.execute(statement).all()
-    list_account = []
-    for account in accounts:
-        list_account.append(account[0])
-    return list_account
+        
+    accounts = db.get_all(session, statement)
+    if not accounts:
+        return {"Response": "Not Found"}
+    return [account[0] for account in accounts]
    
 """ Update account info itself. """ 
 @account_router.put("/", response_model=AccountInfo)
@@ -118,15 +116,13 @@ async def update_account_info(body: AccountBaseModel,
                               authorization: Authorization = Security(),
                               session = Depends(get_session)) -> Account:
     if username == authorization.username or authorization.is_root:
-        account_exist = session.get(Account, username)
+        account_exist = db.get_by_id(session, select(Account).where(Account.username == username))
         if account_exist:
             account_data = body.dict(exclude_unset=True)
             for key, value in account_data.items():
                 setattr(account_exist, key, value)
-                
-            session.add(account_exist)
-            session.commit()
-            session.refresh(account_exist)
+              
+            account_exist = db.add(account_exist)  
             return account_exist 
         raise HTTPException(
             status_code = status.HTTP_404_NOT_FOUND,
@@ -145,7 +141,7 @@ async def change_account_password(body: AccountUpdatePassword,
                                   authorization: Authorization = Security(), 
                                   session = Depends(get_session)):
     if username == authorization.username or authorization.is_root:
-        account_exist = session.get(Account, username)
+        account_exist = db.get_by_id(session, select(Account).where(Account.username == username))
         if account_exist:
             account_data = body.dict(exclude_unset=True)
             for key, value in account_data.items():
@@ -153,9 +149,7 @@ async def change_account_password(body: AccountUpdatePassword,
         
             hashed_password = hash_password.create_hash(body.password)
             account_exist.password = hashed_password
-            session.add(account_exist)
-            session.commit()
-            session.refresh(account_exist)
+            account_exist = db.add(account_exist)
             return {"Response": "Changed Password Success"}    
         raise HTTPException(
             status_code = status.HTTP_404_NOT_FOUND,
@@ -172,10 +166,9 @@ async def change_account_password(body: AccountUpdatePassword,
 async def delete_account(username: str = Query(), 
                          authorization: Authorization = Security(scopes=["root"]),
                          session = Depends(get_session)):
-    account = session.get(Account, username)
+    account = db.get_by_id(session, select(Account).where(Account.username == username))
     if account:
-        session.delete(account)
-        session.commit()
+        db.delete(account)
         return {
             "Response": "Account Deleted Successfully"
         }

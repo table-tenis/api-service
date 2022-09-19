@@ -5,7 +5,7 @@ from sqlalchemy.orm import load_only
 
 from models import ACLBase, ACL
 from schemas import ACLUpdate
-from core.database import get_session
+from core.database import get_session, db
 from dependencies import CommonQueryParams, Authorization
 from sqlalchemy.exc import IntegrityError
 
@@ -21,28 +21,19 @@ async def add_an_acl(new_acl: ACL,
     statement = select(ACL).where(ACL.username == new_acl.username)
     statement = statement.where(ACL.tag_type == new_acl.tag_type)
     statement = statement.where(ACL.tag_qualifier == new_acl.tag_qualifier)
-    acl = session.execute(statement).first()
+    acl = db.get_all(session, statement)
     if acl:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="ACL Record Is Existed, Please Remove Before Add Or Update Its Permissions"
         )
-    try:
-        session.add(new_acl)
-        session.commit()
-        session.refresh(new_acl)
-    except Exception as e:
-        session.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=e._message()
-        )
+    new_acl = db.add(new_acl)
     return {
         "Response": "New ACL Successfully Registered!"
     }
 
 """ Get all acl info. Apply for root user. """
-@acl_router.get("/", response_model=List[ACL])
+@acl_router.get("/")
 async def get_acls(id: int = Query(default=None),
                             username: str = Query(default=None),
                             common_params: CommonQueryParams = Depends(),
@@ -71,7 +62,7 @@ async def get_acls(id: int = Query(default=None),
     if common_params.limit != None and common_params.limit > 0:
         statement = statement.limit(common_params.limit)
     
-    acls = session.execute(statement).all()
+    acls = db.get_all(session, statement)
     if not acls:
         return {"Response": "Not Found"}
     return [acl[0] for acl in acls]
@@ -81,15 +72,13 @@ async def get_acls(id: int = Query(default=None),
 async def update_an_acl(body: ACLUpdate, id: int = Query(), 
                         authorization: Authorization = Security(scopes=["root"]),
                         session = Depends(get_session)):
-    acl = session.get(ACL, id)
+    acl = db.get_by_id(session, select(ACL).where(ACL.id == id))
     if acl:
         acl_data = body.dict(exclude_unset=True)
         for key, value in acl_data.items():
             setattr(acl, key, value)
-         
-        session.add(acl)
-        session.commit()
-        session.refresh(acl)
+        
+        acl = db.add(acl)
         return acl   
     raise HTTPException(
         status_code = status.HTTP_404_NOT_FOUND,
@@ -101,10 +90,9 @@ async def update_an_acl(body: ACLUpdate, id: int = Query(),
 async def delete_an_acl(id: int = Query(), 
                         authorization: Authorization = Security(scopes=["root"]),
                         session = Depends(get_session)):
-    acl = session.get(ACL, id)
+    acl = db.get_by_id(session, select(ACL).where(ACL.id == id))
     if acl:
-        session.delete(acl)
-        session.commit()
+        db.delete(acl)
         return {
             "Response": "ACL Deleted Successfully"
         }
