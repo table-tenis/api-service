@@ -2,6 +2,7 @@ from auth.jwt_handler import verify_access_token
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from core.database import redis_db
+from redis.exceptions import ConnectionError
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/xface/v1/accounts/login")
 from fastapi import Request
 async def authenticate(request: Request, temp: str = Depends(oauth2_scheme)) -> str:
@@ -18,9 +19,15 @@ async def authenticate(request: Request, temp: str = Depends(oauth2_scheme)) -> 
         )
     token = authorization.split(" ")[1]
     decoded_token = verify_access_token(token)
-    if redis_db.exists(token):
+    try:
+        if redis_db.exists(token):
+            raise HTTPException(
+                status_code = status.HTTP_400_BAD_REQUEST,
+                detail = "Token Blocked!"
+            )
+    except Exception as e:
         raise HTTPException(
-            status_code = status.HTTP_400_BAD_REQUEST,
-            detail = "Token Blocked!"
-        )
+                status_code = status.HTTP_400_BAD_REQUEST,
+                detail = str(e)
+            )
     return {"decoded_token" : decoded_token, "token" : token}

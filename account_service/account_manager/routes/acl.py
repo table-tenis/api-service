@@ -27,7 +27,7 @@ async def add_an_acl(new_acl: ACL,
             status_code=status.HTTP_409_CONFLICT,
             detail="ACL Record Is Existed, Please Remove Before Add Or Update Its Permissions"
         )
-    new_acl = db.add(new_acl)
+    new_acl = db.add(session, new_acl)
     return {
         "Response": "New ACL Successfully Registered!"
     }
@@ -78,7 +78,7 @@ async def update_an_acl(body: ACLUpdate, id: int = Query(),
         for key, value in acl_data.items():
             setattr(acl, key, value)
         
-        acl = db.add(acl)
+        acl = db.add(session, acl)
         return acl   
     raise HTTPException(
         status_code = status.HTTP_404_NOT_FOUND,
@@ -92,7 +92,7 @@ async def delete_an_acl(id: int = Query(),
                         session = Depends(get_session)):
     acl = db.get_by_id(session, select(ACL).where(ACL.id == id))
     if acl:
-        db.delete(acl)
+        db.delete(session, acl)
         return {
             "Response": "ACL Deleted Successfully"
         }

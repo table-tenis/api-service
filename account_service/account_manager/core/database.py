@@ -27,8 +27,7 @@ BASE = declarative_base(engine)
 # # Create session
 # Session = sessionmaker(bind=engine)
 # session = Session()
-
-redis_db = redis.Redis(host='localhost', port=6379, decode_responses=True)
+redis_db = redis.Redis(host=settings.redis_db.host, port=settings.redis_db.port, decode_responses=True)
 
 def conn():
     SQLModel.metadata.create_all(engine, )

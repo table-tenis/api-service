@@ -23,22 +23,25 @@ class EnterpriseValid:
 def verify_enterprise_authorization(key, enterprise_valid: EnterpriseValid):
     if "*" not in key:
         enterprise_access_ids = []
+        access_id = {}
         for tag_qualifier in key:
             enterprise_access_ids.append(tag_qualifier[0])
-
-        if enterprise_valid.id != None and enterprise_valid.id not in enterprise_access_ids:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail = "Permission Denied"
-            )
-        if enterprise_valid.id == None and enterprise_valid.statement != None:
-            enterprise_valid.statement = enterprise_valid.statement.where(Enterprise.id.in_(enterprise_access_ids))
+            
+        print("enterprise_access_ids = ", enterprise_access_ids)
+        if -1 not in enterprise_access_ids:
+            if enterprise_valid.id != None and enterprise_valid.id not in enterprise_access_ids:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail = "Permission Denied"
+                )
+            if enterprise_valid.id == None and enterprise_valid.statement != None:
+                enterprise_valid.statement = enterprise_valid.statement.where(Enterprise.id.in_(enterprise_access_ids))
     return enterprise_valid
 
 """ Add new enterprise. """
 @enterprise_router.post("/")
 async def add_a_new_enterprise(enterprise: Enterprise,
-                            #    authorization: Authorization = Security(scopes=["root"]),
+                               authorization: Authorization = Security(scopes=["root"]),
                                session = Depends(get_session)) -> dict:
     if enterprise.id != None:
         enterprise_exist = db.get_by_id(session, select(Enterprise).where(Enterprise.id == enterprise.id))
@@ -64,14 +67,14 @@ async def add_a_new_enterprise(enterprise: Enterprise,
 async def get_enterprises(id: int = Query(default=None), 
                             enterprise_code: str = Query(default=None),
                             query_params: CommonQueryParams = Depends(), 
-                            authorization: Authorization = Security(scopes=["enterprise", "r"]),
+                            authorization: Authorization = Security(scopes=["enterprise.site", "r"]),
                             session = Depends(get_session)):
     statement = select(Enterprise)
     # Some Resouces Match, And Not Root Account.
     # Retrieve Resources Belong To This Account
     enterprise_valid = EnterpriseValid(statement=statement, id=id)
     enterprise_valid = verify_enterprise_authorization(key=authorization.key, enterprise_valid=enterprise_valid)
-    statement = enterprise_valid.statement
+    # statement = enterprise_valid.statement
 
     if id != None:
         statement = statement.where(Enterprise.id == id)

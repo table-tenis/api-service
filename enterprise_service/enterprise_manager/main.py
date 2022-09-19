@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 
 import time
 
@@ -34,6 +34,9 @@ async def add_process_time_header(request: Request, call_next):
     process_time = time.time() - start_time
     response.headers["X-Process-Time"] = str(f'{process_time} sec')#str(f'{process_time:0.10f} sec')
     # response.set_cookie(key="fakesession", value="fake-cookie-session-value")
+    if response.status_code >= 400:
+        print("reponse error status_code = ", response.status_code)
+    # print("reponse body = ", response.body)
     return response
 
 app.include_router(enterprise_router, prefix="/api/xface/v1/enterprises")

@@ -17,7 +17,6 @@ from core.database import redis_db, db
 account_router = APIRouter( tags=["Account"] )
 
 hash_password = HashPassword()
-
 # """ Signin to access system info. """
 # @account_router.get("/auth")
 # async def auth(user_auth: dict = Depends(authenticate),
@@ -38,7 +37,7 @@ async def add_a_new_account(singup_account: Account,
         )
     hashed_password = hash_password.create_hash(singup_account.password)
     singup_account.password = hashed_password
-    singup_account = db.add(singup_account)
+    singup_account = db.add(session, singup_account)
     return {
         "Response": "New Account Successfully Registered!"
     }
@@ -68,7 +67,13 @@ async def account_login(account: OAuth2PasswordRequestForm = Depends(),
 """ Signin to access system info. """
 @account_router.get("/logout")
 async def account_logout(authorization: Authorization = Security()) -> dict:
-    redis_db.set(authorization.token, authorization.username)
+    try:
+        redis_db.set(authorization.token, authorization.username)
+    except Exception as e:
+        raise HTTPException(
+                status_code = status.HTTP_400_BAD_REQUEST,
+                detail = str(e)
+            )
     expire_time = authorization.expires - time()
     if expire_time > 0:
         redis_db.expire(authorization.token, int(expire_time))
@@ -122,7 +127,7 @@ async def update_account_info(body: AccountBaseModel,
             for key, value in account_data.items():
                 setattr(account_exist, key, value)
               
-            account_exist = db.add(account_exist)  
+            account_exist = db.add(session, account_exist)  
             return account_exist 
         raise HTTPException(
             status_code = status.HTTP_404_NOT_FOUND,
@@ -149,7 +154,7 @@ async def change_account_password(body: AccountUpdatePassword,
         
             hashed_password = hash_password.create_hash(body.password)
             account_exist.password = hashed_password
-            account_exist = db.add(account_exist)
+            account_exist = db.add(session, account_exist)
             return {"Response": "Changed Password Success"}    
         raise HTTPException(
             status_code = status.HTTP_404_NOT_FOUND,
@@ -168,7 +173,7 @@ async def delete_account(username: str = Query(),
                          session = Depends(get_session)):
     account = db.get_by_id(session, select(Account).where(Account.username == username))
     if account:
-        db.delete(account)
+        db.delete(session, account)
         return {
             "Response": "Account Deleted Successfully"
         }

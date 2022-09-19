@@ -69,44 +69,44 @@ class Authorization:
                         print(e)
 
             # try to match sub tag_type with 'admin' permission
-            else:
-                tag_type_separate = tag_type.split('.')
-                sub_acl = []
-                sub_acl_len_reserve = {}
-                if len(tag_type_separate) > 1:
-                    for i in range(1, len(tag_type_separate)):
-                        sub_tag_type = '.'.join(tag_type_separate[:-i])
-                        # Match sub_tag_type with all tag_type in acl records
-                        for j in range(len(acls)):
-                            if sub_tag_type == acls[j].split(':')[0]:
-                                # If Match, save this sub_tag_type with sub_len_reserve
-                                # Example: origin tag_type = 'enterprise.site.camera'
-                                # matched sub_tag_type  = 'enterprise.site', sub_len_reserve = 1
-                                # Or matched sub_tag_type  = 'enterprise', sub_len_reserve = 2
-                                # sub_len_reserve to add '-1' id as accept all id to tag_qualifier list
-                                # If scope require is 'enterprise.site.camera'
-                                # And if matched sub_tag_type  = 'enterprise.site' with tag_qualifier = '1.2', so tag_qualifier list = [1,2,-1]
-                                # Or if matched sub_tag_type  = 'enterprise' with tag_qualifier = '1', so tag_qualifier list = [1,-1,-1]
-                                acl.append(acls[j])
-                                sub_acl_len_reserve[acls[j]] = i
-                                break
-                for acl in sub_acl:
-                    tag_qualifier_valid = []
-                    acl_accquired = acl.split(':') # ['enterprise.site', '1.1,1.2,1.3', 'crud,admin,cru-'] or ['enterprise', '1,2', 'admin,admin']
-                    tag_qualifier_accquired = acl_accquired[1].split(',') # ['1.1', '1.2', '1.3']
-                    permissions_accquired = acl_accquired[2].split(',') # ['crud', 'admin', 'cru-']
-                    for i in range(len(permissions_accquired)):
-                        if 'admin' == permissions_accquired[i]:
-                            tag_qualifier_valid.append(tag_qualifier_accquired[i])
-                    tag_qualifier_valid = [tag_qualifier.split('.') for tag_qualifier in tag_qualifier_valid]
-                    for tag_qualifier in tag_qualifier_valid:
-                        # convert list of str to list of int
-                        for j in range(sub_acl_len_reserve[acl]):
-                            tag_qualifier.append('-1')
-                        try:
-                            self.key.append([int(i) for i in tag_qualifier])
-                        except ValueError as e:
-                            print(e)
+            # else:
+            tag_type_separate = tag_type.split('.')
+            sub_acl = []
+            sub_acl_len_reserve = {}
+            if len(tag_type_separate) > 1:
+                for i in range(1, len(tag_type_separate)):
+                    sub_tag_type = '.'.join(tag_type_separate[:-i])
+                    # Match sub_tag_type with all tag_type in acl records
+                    for j in range(len(acls)):
+                        if sub_tag_type == acls[j].split(':')[0]:
+                            # If Match, save this sub_tag_type with sub_len_reserve
+                            # Example: origin tag_type = 'enterprise.site.camera'
+                            # matched sub_tag_type  = 'enterprise.site', sub_len_reserve = 1
+                            # Or matched sub_tag_type  = 'enterprise', sub_len_reserve = 2
+                            # sub_len_reserve to add '-1' id as accept all id to tag_qualifier list
+                            # If scope require is 'enterprise.site.camera'
+                            # And if matched sub_tag_type  = 'enterprise.site' with tag_qualifier = '1.2', so tag_qualifier list = [1,2,-1]
+                            # Or if matched sub_tag_type  = 'enterprise' with tag_qualifier = '1', so tag_qualifier list = [1,-1,-1]
+                            sub_acl.append(acls[j])
+                            sub_acl_len_reserve[acls[j]] = i
+                            break
+            for acl in sub_acl:
+                tag_qualifier_valid = []
+                acl_accquired = acl.split(':') # ['enterprise.site', '1.1,1.2,1.3', 'crud,admin,cru-'] or ['enterprise', '1,2', 'admin,admin']
+                tag_qualifier_accquired = acl_accquired[1].split(',') # ['1.1', '1.2', '1.3']
+                permissions_accquired = acl_accquired[2].split(',') # ['crud', 'admin', 'cru-']
+                for i in range(len(permissions_accquired)):
+                    if 'admin' == permissions_accquired[i]:
+                        tag_qualifier_valid.append(tag_qualifier_accquired[i])
+                tag_qualifier_valid = [tag_qualifier.split('.') for tag_qualifier in tag_qualifier_valid]
+                for tag_qualifier in tag_qualifier_valid:
+                    # convert list of str to list of int
+                    for j in range(sub_acl_len_reserve[acl]):
+                        tag_qualifier.append('-1')
+                    try:
+                        self.key.append([int(i) for i in tag_qualifier])
+                    except ValueError as e:
+                        print(e)
 
             
         print("key = ", self.key)

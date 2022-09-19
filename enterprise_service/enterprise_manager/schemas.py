@@ -2,7 +2,6 @@ from pydantic import BaseModel
 from typing import Optional
 
 class SiteUpdate(BaseModel):
-    enterprise_id: Optional[int] 
     name: Optional[str] 
     description: Optional[str] 
     note: Optional[str] 
