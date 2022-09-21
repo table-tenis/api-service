@@ -1,6 +1,7 @@
 class Tree:
-    def __init__(self, key) -> None:
+    def __init__(self, key, name='') -> None:
         self.key = [0,0,0,0]
+        self.name = name
         for i in range(len(key)):
             self.key[i] = key[i]
         self.parent = None
@@ -14,9 +15,10 @@ class Tree:
     
     def add_child(self, child):
         assert isinstance(child, Tree)
-        child.key[3] = self.key[1]
-        self.children.append(child)
-        child.parent = self
+        if child not in self.children:
+            child.key[3] = self.key[1]
+            self.children.append(child)
+            child.parent = self
     
     def add_children(self, child_list):
         for child in child_list:
@@ -50,11 +52,14 @@ class TagQualifierTreeList:
 
     def add_tree(self, tree):
         found = False
+        print("add tree = ", tree.key)
         for exist_tree in self.tree_list:
             if exist_tree.key == tree.key:
+                print("not found, ", exist_tree.key, tree.key)
                 found = True
                 break
         if not found:
+            print("append tree = ", tree.key)
             self.tree_list.append(tree)
             if self.deep_list.get(tree.key[0]) == None:
                 self.deep_list[tree.key[0]] = [tree]
@@ -95,11 +100,17 @@ class TagQualifierTreeList:
        
     def remove_brach(self, tree):
         if tree.parent:
-            tree.parent.children.remove(tree)
-            if not tree.parent.is_root():
+            try:
+                tree.parent.children.remove(tree)
+            except ValueError as e:
+                print(e, tree.key)
+            if not tree.parent.is_root() and len(tree.parent.children) == 0:
                 self.remove_brach(tree.parent)
         tree.children = []
-        self.delete_tree(tree) 
+        try:
+            self.delete_tree(tree) 
+        except ValueError as e:
+            print(e, tree.key)
      
     def pruning_tree(self, tag_qualifier):
         subtree_list = []
@@ -171,22 +182,29 @@ def verify_query_params(query_params, tag_qualifiers):
             
     # After Complete Contruct User Tree As TreeList.
     # Prunching TreeList With query params To Get Matched Tree For Query
+    print(len(tree_list.deep_list[0]), len(tree_list.tree_list))
+    for tree in tree_list.tree_list:
+        print("----", tree.key, tree.name)
+    for tree in tree_list.deep_list[0]:
+        print_subtree(tree)
     tree_list.pruning_tree(query_params)
     return tree_list.deep_list[0]
 
 def print_subtree(subtree):
     if not subtree:
         return 
-    print(subtree.key)
+    print(subtree.key, subtree.name)
     # print('\n')
     children = subtree.children
     for child in children:
         print_subtree(child)
 
 if __name__ == '__main__':
-    query_params = [4,None,1]
-    tag_qualifiers = [[4,3,-1], [4,4,-1], [4,5,-1], [2,2,3], [2,1,1], [2,5,4]]
+    query_params = [1,2,2,None]
+    # tag_qualifiers = [[4,3,-1], [4,4,-1], [4,5,-1], [2,2,3], [2,1,1], [2,5,4]]
+    tag_qualifiers = [[1,2,1,9], [1,2,2,10], [1,2,3,11], [1,2,3,12], [1,4,7,13], [1,4,7,14], [1,4,7,15]]
     match_tree_list = verify_query_params(query_params, tag_qualifiers) 
+    print(len(match_tree_list))
     for tree in match_tree_list:
         print('------------')
         print_subtree(tree)

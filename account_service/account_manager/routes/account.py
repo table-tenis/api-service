@@ -18,11 +18,10 @@ account_router = APIRouter( tags=["Account"] )
 
 hash_password = HashPassword()
 # """ Signin to access system info. """
-# @account_router.get("/auth")
-# async def auth(user_auth: dict = Depends(authenticate),
-#                authorization: Authorization = Security(scopes=['root'])) -> dict:
-#     print(authorization.authorization)
-#     return {"Authenticate" : "OK"}
+@account_router.get("/auth")
+async def auth(authorization: Authorization = Security()) -> dict:
+    print(authorization.authorization)
+    return {"Authenticate" : "OK"}
 
 """ Add a new account. Aplly for root user. """
 @account_router.post("/")
@@ -116,7 +115,10 @@ async def get_accounts(username: str = Query(default=None),
     accounts = db.get_all(session, statement)
     if not accounts:
         return {"Response": "Not Found"}
-    return [account[0] for account in accounts]
+    # acc = AccountInfo()
+    return [{"username":account[0].username, "email":account[0].email, 
+             "cellphone":account[0].cellphone, "note":account[0].note, 
+             "is_root":account[0].is_root} for account in accounts]
    
 """ Update account info itself. """ 
 @account_router.put("/", response_model=AccountInfo)

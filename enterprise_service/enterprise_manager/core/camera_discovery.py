@@ -1,11 +1,11 @@
-from custom_daemon import WSDiscovery
+from core.custom_daemon import WSDiscovery
 from onvif import ONVIFCamera
 import re
 import time
 import platform    # For getting the operating system name
 import subprocess  # For executing a shell command
 
-def ping(host):
+async def ping(host):
     """
     Returns True if host (str) responds to a ping request.
     Remember that a host may not respond to a ping (ICMP) request even if the host name is valid.
@@ -16,7 +16,7 @@ def ping(host):
     command = ['ping', param, '1', host]
     return subprocess.call(command) == 0
 
-def run_wsdiscovery(ip):
+async def run_wsdiscovery(ip):
     reg = re.compile("^http:\/\/(\d*\.\d*\.\d*\.\d*).*\/onvif")
     wsd = WSDiscovery()
     ip_range = [ip]
@@ -40,8 +40,8 @@ def run_wsdiscovery(ip):
     wsd.stop()
     return ip_addresses
 
-def profiling_camera(ip):
-    ping_status = ping(ip)
+async def profiling_camera(ip):
+    ping_status = await ping(ip)
     if not ping_status:
         return "unreachable"
     mycam = ONVIFCamera(ip, 80, 'admin', '123456a@', 'wsdl')
