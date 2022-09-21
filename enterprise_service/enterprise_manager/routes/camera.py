@@ -1,7 +1,6 @@
 from importlib.metadata import entry_points
 from time import time
 from fastapi import APIRouter, HTTPException, status, Depends, Response, Security, Query
-from fastapi.security import OAuth2PasswordRequestForm
 from typing import List
 from sqlmodel import select
 from sqlalchemy.orm import load_only
@@ -52,6 +51,7 @@ async def get_camera_by_fields(enterprise_id: int = Query(default=None),
                                 site_id: int = Query(default=None),
                                 id: int = Query(default=None), name: str = Query(default=None),
                                 ip: str = Query(default=None), description: str = Query(default=None),
+                                sorted: str = Query(default=None, regex="^[+-](id|site_id|ip|name)"),
                                 common_params: CommonQueryParams = Depends(),
                                 session = Depends(get_session)):
     statement = select(Camera)
@@ -73,11 +73,26 @@ async def get_camera_by_fields(enterprise_id: int = Query(default=None),
         statement = statement.filter(Camera.description.contains(description))
     if common_params.search != None:
         statement = statement.filter(Camera.name.contains(common_params.search))
-    if common_params.sort != None:
-        if common_params.sort[0] == "-":
-            statement = statement.order_by(Camera.name.desc())
-        elif common_params.sort[0] == "+":
-            statement = statement.order_by(Camera.name.asc())
+    if sorted != None:
+        if sorted[0] == "-":
+            if sorted[1:] == 'id':
+                statement = statement.order_by(Camera.id.desc())
+            elif sorted[1:] == 'site_id':
+                statement = statement.order_by(Camera.site_id.desc())
+            elif sorted[1:] == 'ip':
+                statement = statement.order_by(Camera.ip.desc())
+            elif sorted[1:] == 'name':
+                statement = statement.order_by(Camera.name.desc())
+        elif sorted[0] == "+":
+            if sorted[1:] == 'id':
+                statement = statement.order_by(Camera.id.asc())
+            elif sorted[1:] == 'site_id':
+                statement = statement.order_by(Camera.site_id.asc())
+            elif sorted[1:] == 'ip':
+                statement = statement.order_by(Camera.ip.asc())
+            elif sorted[1:] == 'name':
+                statement = statement.order_by(Camera.name.asc())
+        
     if common_params.limit != None and common_params.limit > 0:
         statement = statement.limit(common_params.limit)
 

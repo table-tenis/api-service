@@ -50,7 +50,7 @@ async def account_login(account: OAuth2PasswordRequestForm = Depends(),
     if not account_exist:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Account With Username Does Not Exist."
+            detail="Username Or Password Wrong"
         )
     if hash_password.verify_hash(account.password, account_exist.password):
         access_token = create_access_token(account_exist.username, get_authorization(account_exist.username, session))
@@ -61,7 +61,7 @@ async def account_login(account: OAuth2PasswordRequestForm = Depends(),
 
     raise HTTPException(
         status_code = status.HTTP_401_UNAUTHORIZED,
-        detail = "Password Wrong."
+        detail = "Username Or Password Wrong"
     )
 
 """ Signin to access system info. """
@@ -78,13 +78,14 @@ async def account_logout(authorization: Authorization = Security()) -> dict:
     if expire_time > 0:
         redis_db.expire(authorization.token, int(expire_time))
     return {
-        "Logout Success"
+        "Response": "Logout Success"
     }
     
 """ Get all account's username info. Apply for root user. """
-@account_router.get("/", response_model=List[AccountInfo])
+@account_router.get("/" )
 async def get_accounts(username: str = Query(default=None),
-                        authorization: Authorization = Security(scopes=['enterprise.site', 'r']),
+                        authorization: Authorization = Security(),
+                        sorted: str = Query(default=None, regex="^[+-](username)"),
                         query_params: CommonQueryParams = Depends(),
                         session = Depends(get_session)):
     statement = select(Account)
@@ -98,16 +99,19 @@ async def get_accounts(username: str = Query(default=None),
     elif username == None and not authorization.is_root:
         # Just retrieve account for only this sign-in account
         statement = statement.where(Account.username == authorization.username)
-
+    
+    if query_params.search != None:
+        print('query_params.search = ', query_params.search)
+        statement = statement.filter(Account.username.contains(query_params.search))
+    if sorted != None:
+        if sorted[0] == "-":
+            if sorted[1:] == 'username':
+                statement = statement.order_by(Account.username.desc())
+        elif sorted[0] == "+":
+            if sorted[1:] == 'username':
+                statement = statement.order_by(Account.username.asc())
     if query_params.limit != None and query_params.limit > 0:
         statement = statement.limit(query_params.limit)
-    if query_params.sort != None:
-        if query_params.sort[0] == "-":
-            statement = statement.order_by(Account.username.desc())
-        elif query_params.sort[0] == "+":
-            statement = statement.order_by(Account.username.asc())
-    if query_params.search != None:
-        statement = statement.filter(Account.username.contains(query_params.search))
         
     accounts = db.get_all(session, statement)
     if not accounts:

@@ -66,6 +66,7 @@ async def add_a_new_enterprise(enterprise: Enterprise,
 @enterprise_router.get("/")
 async def get_enterprises(id: int = Query(default=None), 
                             enterprise_code: str = Query(default=None),
+                            sorted: str = Query(default=None, regex="^[+-](id|enterprise_code|name)"),
                             query_params: CommonQueryParams = Depends(), 
                             authorization: Authorization = Security(scopes=["enterprise.site", "r"]),
                             session = Depends(get_session)):
@@ -82,11 +83,21 @@ async def get_enterprises(id: int = Query(default=None),
         statement = statement.where(Enterprise.enterprise_code == enterprise_code)
     if query_params.search != None:
         statement = statement.filter(Enterprise.enterprise_code.contains(query_params.search))
-    if query_params.sort != None:
-        if query_params.sort[0] == "-":
-            statement = statement.order_by(Enterprise.enterprise_code.desc())
-        elif query_params.sort[0] == "+":
-            statement = statement.order_by(Enterprise.enterprise_code.asc())
+    if sorted != None:
+        if sorted[0] == "-":
+            if sorted[1:] == 'id':
+                statement = statement.order_by(Enterprise.id.desc())
+            elif sorted[1:] == 'enterprise_code':
+                statement = statement.order_by(Enterprise.enterprise_code.desc())
+            elif sorted[1:] == 'name':
+                statement = statement.order_by(Enterprise.name.desc())
+        elif sorted[0] == "+":
+            if sorted[1:] == 'id':
+                statement = statement.order_by(Enterprise.id.asc())
+            elif sorted[1:] == 'enterprise_code':
+                statement = statement.order_by(Enterprise.enterprise_code.asc())
+            elif sorted[1:] == 'name':
+                statement = statement.order_by(Enterprise.name.asc())
     if query_params.limit != None and query_params.limit > 0:
         statement = statement.limit(query_params.limit)
 

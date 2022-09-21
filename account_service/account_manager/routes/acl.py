@@ -18,11 +18,38 @@ acl_router = APIRouter( tags=["Access Control List"])
 async def add_an_acl(new_acl: ACL, 
                     authorization: Authorization = Security(scopes=["root"]),
                     session = Depends(get_session)) -> dict:
+    if len(new_acl.tag_type.split('.')) != len(new_acl.tag_qualifier.split('.')):
+        raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Can't Insert This ACL, Tag_Type And Tag_Qualifier Not Match"
+                    )
     statement = select(ACL).where(ACL.username == new_acl.username)
     statement = statement.where(ACL.tag_type == new_acl.tag_type)
+    acls = db.get_all(session, statement)
+    if acls:
+        insert_tag_qualifier = new_acl.tag_qualifier
+        insert_tag_qualifier = insert_tag_qualifier.split('.')
+        for acl in acls:
+            exist_tag_qualifier = acl[0].tag_qualifier
+            exist_tag_qualifier = exist_tag_qualifier.split('.')
+            length = min(len(insert_tag_qualifier), len(exist_tag_qualifier))
+            for i in range(length):
+                if exist_tag_qualifier[i] == '-1' and insert_tag_qualifier[i] != '-1':
+                    if '.'.join(exist_tag_qualifier[:i]) == '.'.join(insert_tag_qualifier[:i]):
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Can't Insert This ACL, Tag_Qualifier Overlapping"
+                        )
+                elif insert_tag_qualifier[i] == '-1' and exist_tag_qualifier[i] != '-1':
+                    if '.'.join(exist_tag_qualifier[:i]) == '.'.join(insert_tag_qualifier[:i]):
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Can't Insert This ACL, Tag_Qualifier Overlapping"
+                        )
+            
     statement = statement.where(ACL.tag_qualifier == new_acl.tag_qualifier)
-    acl = db.get_all(session, statement)
-    if acl:
+    acls = db.get_all(session, statement)
+    if acls:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="ACL Record Is Existed, Please Remove Before Add Or Update Its Permissions"
@@ -36,6 +63,7 @@ async def add_an_acl(new_acl: ACL,
 @acl_router.get("/")
 async def get_acls(id: int = Query(default=None),
                             username: str = Query(default=None),
+                            sorted: str = Query(default=None, regex="^[+-](id|username|tag_type)"),
                             common_params: CommonQueryParams = Depends(),
                             authorization: Authorization = Security(),
                             session = Depends(get_session)):
@@ -44,7 +72,7 @@ async def get_acls(id: int = Query(default=None),
         if not authorization.is_root and username != authorization.username:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Username Does Not Match"
+                detail="Permission Denied!"
             )
         statement = statement.where(ACL.username == username)
     elif username == None and not authorization.is_root:
@@ -54,11 +82,21 @@ async def get_acls(id: int = Query(default=None),
         statement = statement.where(ACL.id == id)
     if common_params.search != None:
         statement = statement.filter(ACL.username.contains(common_params.search))
-    if common_params.sort != None:
-        if common_params.sort[0] == "-":
-            statement = statement.order_by(ACL.username.desc())
-        elif common_params.sort[0] == "+":
-            statement = statement.order_by(ACL.username.asc())
+    if sorted != None:
+        if sorted[0] == "-":
+            if sorted[1:] == 'id':
+                statement = statement.order_by(ACL.id.desc())
+            elif sorted[1:] == 'username':
+                statement = statement.order_by(ACL.username.desc())
+            elif sorted[1:] == 'tag_type':
+                statement = statement.order_by(ACL.tag_type.desc())
+        elif sorted[0] == "+":
+            if sorted[1:] == 'id':
+                statement = statement.order_by(ACL.id.asc())
+            elif sorted[1:] == 'username':
+                statement = statement.order_by(ACL.username.asc())
+            elif sorted[1:] == 'tag_type':
+                statement = statement.order_by(ACL.tag_type.asc())
     if common_params.limit != None and common_params.limit > 0:
         statement = statement.limit(common_params.limit)
     

@@ -46,9 +46,7 @@ def get_error(e):
                 'error': e._message()}
 class CommonQueryParams:
     def __init__(self, limit: int = Query(default=None, description="set limit number account's username to retrieve", gt=0),
-                                        sort: str = Query(default=None, regex="^[+-].*"),
                                         search: str = Query(default=None)):
-        self.sort = sort
         self.limit = limit
         self.search = search    
 class PathParams:

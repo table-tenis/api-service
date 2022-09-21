@@ -40,7 +40,7 @@ class Authorization:
                 detail = "Permission Denied"
             )
         if self.is_root:
-            self.key.append('*')
+            self.key.append([-1 for i in range(len(self.scopes[0].split('.')))])
         if ('root' not in self.scopes) and (not self.is_root) and (len(self.scopes) > 0):
             # find all key this account can access
             acls = self.authorization['acl'].split('|')
