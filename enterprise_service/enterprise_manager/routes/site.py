@@ -81,18 +81,30 @@ async def get_sites(enterprise_id: int = Query(default=None),
     if common_params.limit != None and common_params.limit != "":
         limit_param += f"limit {common_params.limit}"
     if common_params.search != None:
-        search_param += f"and site.name like '%{common_params.search}%'"
+        search_param += f"site.name like '%{common_params.search}%'"
     if sorted != None:
         if sorted[0] == "+":
             sort_param += f"order by site.{sorted[1:]}"
         else:
             sort_param += f"order by site.{sorted[1:]} desc"
     if name != None:
-        name_param += f"and site.name = '{name}'"
+        name_param += f"site.name = '{name + ''}'"
+    
+    condition_statement = ""
+    conditions_list = [filter_id_param, name_param, search_param]
+    first_add = False
+    for condition in conditions_list:
+        if condition != '':
+            if not first_add:
+                condition_statement = 'where ' + condition
+                first_add = True
+            else:
+                condition_statement += ' and ' + condition
+    print(condition_statement)
     statement = f"select site.id, site.enterprise_id, site.name, site.description, site.note "\
                     "from site "\
-                    "where {} {} {} {} {};"\
-                    .format(filter_id_param, name_param, search_param, sort_param, limit_param)
+                    "{} {} {};"\
+                    .format(condition_statement, sort_param, limit_param)
     print("statement = ", statement)
     try:
         cursor.execute(statement)

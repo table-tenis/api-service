@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException, status, Depends, Response, Securit
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from typing import List
-from sqlalchemy import not_
+from sqlalchemy import false, not_
 from sqlmodel import select, or_, and_, not_
 from sqlalchemy.orm import load_only
 
@@ -87,31 +87,35 @@ async def get_camera_by_fields(enterprise_id: int = Query(default=None),
     if len(matched_trees) == 0:
         return []
     filter_id_param = camera_tree_to_query(matched_trees)
-    if filter_id_param != "":
-        filter_id_param  = "and " + filter_id_param
         
     limit_param, search_param, sort_param, ip_param, name_param, description_param = "", "", "", "", "", ""
     print('common_params.search = ', common_params.search)
     if common_params.limit != None and common_params.limit != "":
         limit_param += f"limit {common_params.limit}"
     if common_params.search != None:
-        search_param += f"and camera.name like '%{common_params.search}%'"
+        search_param += f"camera.name like '%{common_params.search}%'"
     if sorted != None:
         if sorted[0] == "+":
             sort_param += f"order by camera.{sorted[1:]}"
         else:
             sort_param += f"order by camera.{sorted[1:]} desc"
     if ip != None:
-        ip_param += f"and camera.ip = '{ip}'"
+        ip_param += f"camera.ip = '{ip}'"
     if name != None:
-        name_param += f"and camera.name = '{name}'"
+        name_param += f"camera.name = '{name}'"
     if description != None:
-        description_param += f"and camera.description like '%{description}%'"
+        description_param += f"camera.description like '%{description}%'"
+    condition_statement = ""
+    conditions_list = [filter_id_param, name_param, ip_param, description_param, search_param]
+    for condition in conditions_list:
+        if condition != '':
+            condition_statement += ' and ' + condition
+    print(condition_statement)
     statement = f"select camera.id, camera.site_id, camera.ip, camera.name, "\
                     "camera.description, camera.rtsp_uri, camera.stream "\
                     "from camera, site "\
-                    "where camera.site_id = site.id {} {} {} {} {} {} {};"\
-                    .format(filter_id_param, name_param, ip_param, description_param, search_param, sort_param, limit_param)
+                    "where camera.site_id = site.id {} {} {};"\
+                    .format(condition_statement, sort_param, limit_param)
     print("statement = ", statement)
     try:
         cursor.execute(statement)
