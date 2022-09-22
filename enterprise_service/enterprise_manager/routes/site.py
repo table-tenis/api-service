@@ -1,9 +1,8 @@
-from email import header
-from random import seed
 from time import time
 
 from fastapi import APIRouter, HTTPException, status, Depends, Security, Query
-from fastapi.routing import APIRoute
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
 from typing import List
 from sqlmodel import Session, select, and_, or_, not_
 from sqlalchemy.orm import load_only
@@ -11,42 +10,28 @@ from sqlalchemy.orm import load_only
 from models import Site, SiteBase
 from schemas import SiteUpdate
 from dependencies import CommonQueryParams, Authorization
-from core.database import redis_db, get_session, engine, db
-from core.tag_qualifier_tree import verify_query_params, print_subtree
+from core.database import redis_db, get_session, engine, db, get_cursor
+from core.tag_qualifier_tree import Tree, verify_query_params, print_subtree, gender_query
 site_router = APIRouter(tags=["Site"])
- 
-# Add And Condition For Each Matched Tree.     
-def add_and_condition_in_tree(tree):
-    and_condition = []
-    print('tree_key = ', tree.key[1])
-    site_id = []
-    if -1 != tree.key[1]:
-        and_condition.append(Site.enterprise_id == tree.key[1])
-    for subtree in tree.children:
-        site_id.append(subtree.key[1])
-    print('site_id = ', site_id)
-    if -1 not in site_id:
-        and_condition.append(Site.id.in_(site_id))
-            
-    if len(and_condition) > 0:
-        print('and_condition = ', and_condition, and_(*and_condition))
-        return and_condition
-    return None
-  
-# Decorate Query Statement With Matched Trees.        
-def decor_site_statement(subtree_query, statement):
-    or_conditions = []
-    if len(subtree_query) > 0:
-        for tree in subtree_query:
-            sub_and_condition = add_and_condition_in_tree(tree)
-            print(sub_and_condition)
-            if sub_and_condition :
-                or_conditions.append(and_(*sub_and_condition))
-    if len(or_conditions) > 0:
-        # Add Or Condition For Entire Matched Trees.  
-        statement = statement.where(or_(*or_conditions))
-        print('tree statement = ', statement)    
-    return statement             
+
+def site_labeling_tree(tree):
+    if tree.key[0] == -1:
+        tree.name = 'root'
+    elif tree.key[0] == 0:
+        tree.name = 'site.enterprise_id = '
+    elif tree.key[0] == 1:
+        tree.name = 'site.id = '
+    for child in tree.children:
+        site_labeling_tree(child)
+        
+def site_tree_to_query(tree_list):
+    root = Tree((-1,-1,-1,-1))
+    root.name = 'root'
+    for tree in tree_list:
+        root.add_child(tree)
+    site_labeling_tree(root)
+    # print_subtree(root)
+    return gender_query(root)           
 
 """ Add new site. """
 @site_router.post("/")
@@ -74,51 +59,55 @@ async def add_a_new_site(site: Site,
 
 """ Get site info by site name or side id. Apply for root user. """
 @site_router.get("/")
-async def get_site_by_fields(enterprise_id: int = Query(default=None),
+async def get_sites(enterprise_id: int = Query(default=None),
                             id: int = Query(default=None), 
                             name: str = Query(default=None),
                             sorted: str = Query(default=None, regex="^[+-](id|enterprise_id|name)"),
                             common_params: CommonQueryParams = Depends(),
                             authorization: Authorization = Security(scopes=['enterprise.site', 'r']),
-                            session = Depends(get_session)):
-    statement = select(Site)
+                            cursor = Depends(get_cursor)):
     # This Block Verify Query Params With Tag Qualifier Authorizarion Tree.
     # If Size Of Matched Trees List Is 0, Query Params List Don't Match Any Tag Qualifier Authorization.
     # Else, We Have Matched_Trees. And Decorate Staetment With Matched_Tree.
     matched_trees = verify_query_params([enterprise_id, id], authorization.key)
     if len(matched_trees) == 0:
-        return {"Response" : "Not Found"}
-    for tree in matched_trees:
-        print('-------------')
-        print_subtree(tree)
-    statement = decor_site_statement(matched_trees, statement)
-    
-    if name != None:
-        statement = statement.where(Site.name == name)
+        return []
+    filter_id_param = site_tree_to_query(matched_trees)
+    # if filter_id_param != "":
+    #     filter_id_param  = "and " + filter_id_param
+        
+    limit_param, search_param, sort_param, name_param = "", "", "", ""
+    print('common_params.search = ', common_params.search)
+    if common_params.limit != None and common_params.limit != "":
+        limit_param += f"limit {common_params.limit}"
     if common_params.search != None:
-        statement = statement.filter(Site.name.contains(common_params.search))
+        search_param += f"and site.name like '%{common_params.search}%'"
     if sorted != None:
-        if sorted[0] == "-":
-            if sorted[1:] == 'id':
-                statement = statement.order_by(Site.id.desc())
-            elif sorted[1:] == 'enterprise_id':
-                statement = statement.order_by(Site.enterprise_id.desc())
-            elif sorted[1:] == 'name':
-                statement = statement.order_by(Site.name.desc())
-        elif sorted[0] == "+":
-            if sorted[1:] == 'id':
-                statement = statement.order_by(Site.id.asc())
-            elif sorted[1:] == 'enterprise_id':
-                statement = statement.order_by(Site.enterprise_id.asc())
-            elif sorted[1:] == 'name':
-                statement = statement.order_by(Site.name.asc())
-    if common_params.limit != None and common_params.limit > 0:
-        statement = statement.limit(common_params.limit)
-    print('original statement = ', str(statement))
-    sites = db.get_all(session, statement)
-    if not sites:
-        return {"Response" : "Not Found!"}
-    return [site[0] for site in sites]
+        if sorted[0] == "+":
+            sort_param += f"order by site.{sorted[1:]}"
+        else:
+            sort_param += f"order by site.{sorted[1:]} desc"
+    if name != None:
+        name_param += f"and site.name = '{name}'"
+    statement = f"select site.id, site.enterprise_id, site.name, site.description, site.note "\
+                    "from site "\
+                    "where {} {} {} {} {};"\
+                    .format(filter_id_param, name_param, search_param, sort_param, limit_param)
+    print("statement = ", statement)
+    try:
+        cursor.execute(statement)
+        sites = cursor.fetchall()
+    except Exception as e:
+        raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail = str(e)
+            )
+    list_site = [{'id':site[0], 'enterprise_id':site[1], 'name':site[2], 
+                  'description':site[3], 'note': site[4]} for site in sites]
+    # print(list_camera)
+    return JSONResponse(content=jsonable_encoder(list_site))
+
+
 
 """ Update site info. Apply for root user """ 
 @site_router.put("/")

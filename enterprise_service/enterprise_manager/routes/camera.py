@@ -1,6 +1,7 @@
-from importlib.metadata import entry_points
 from time import time
 from fastapi import APIRouter, HTTPException, status, Depends, Response, Security, Query
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
 from typing import List
 from sqlalchemy import not_
 from sqlmodel import select, or_, and_, not_
@@ -8,120 +9,42 @@ from sqlalchemy.orm import load_only
 
 from models import Camera, Site, CameraBase
 from schemas import CameraUpdate
-from core.database import get_session, db
+from core.database import get_session, db, get_cursor
 
 from dependencies import CommonQueryParams, Authorization
 from core.database import redis_db
-import json
+from json import dumps
 from core.camera_discovery import run_wsdiscovery, profiling_camera
-from core.tag_qualifier_tree import Tree, verify_query_params, print_subtree
+from core.tag_qualifier_tree import Tree, verify_query_params, print_subtree, gender_query
 camera_router = APIRouter( tags=["Camera"] )
 CAMERA_DISCOVERY_LIST = []
 
-
-def gender_query(tree):
-    if tree.key[1] == -1 and tree.key[0] != -1:
-        return ""
-    
-    id = ""
-    if tree.key[1] != -1:
-        id = str(tree.key[1])
-
-    sub_id = ""
-    for child in tree.children:
-        if sub_id == "":
-            sub_id += gender_query(child)
-        else:
-            sub_id += " or " + gender_query(child)
-        
-    if sub_id != "":
-        if id == "":
-            id = sub_id
-        else:
-            id  = id + " and ( " + sub_id + " )"
-        
-    return id
-
-def labeling_tree(tree):
+def camera_labeling_tree(tree):
     if tree.key[0] == -1:
         tree.name = 'root'
     elif tree.key[0] == 0:
-        tree.name = 'enterprise'
+        tree.name = 'site.enterprise_id = '
     elif tree.key[0] == 1:
-        tree.name = 'site'
+        tree.name = 'camera.site_id = '
     elif tree.key[0] == 2:
-        tree.name = 'camera'
+        tree.name = 'camera.id = '
     for child in tree.children:
-        labeling_tree(child)
+        camera_labeling_tree(child)
         
-def tree_to_query(tree_list):
+def camera_tree_to_query(tree_list):
     root = Tree((-1,-1,-1,-1))
     root.name = 'root'
     for tree in tree_list:
         root.add_child(tree)
-    labeling_tree(root)
-    print_subtree(root)
+    camera_labeling_tree(root)
+    # print_subtree(root)
     return gender_query(root)
-    
-# Add And Condition For Each Matched Tree.     
-def add_and_condition_in_tree(session, tree):
-    and_condition = []
-    print('tree_key = ', tree.key[1])
-    site_id = []
-    if -1 != tree.key[1]:    
-        sites = db.get_all(session, select(Site).options(load_only("id")).where(Site.enterprise_id ==  tree.key[1]))
-        sites_id = []
-        for site in sites:
-            sites_id.append(site[0].id)
-        and_condition.append(Camera.site_id.in_(sites_id))
-    for subtree in tree.children:
-        site_id.append(subtree.key[1])
-    print('site_id = ', site_id)
-    if -1 not in site_id:
-        and_condition.append(Camera.site_id.in_(site_id))
-            
-    if len(and_condition) > 0:
-        print('and_condition = ', and_condition, and_(*and_condition))
-        return and_condition
-    return None
-  
-# Decorate Query Statement With Matched Trees.        
-def decor_camera_statement(query_tree, session, statement):
-    # Try To Reduce Query Tree To High = 2. Because Contrains In A Table Is Usually 2 Level.
-    if -1 == query_tree[0].key[1]:
-        # Root Of This Tree Have Qualifier Id = -1.
-        # So Romove This Root, Decrease Tree 1 Level.
-        query_tree = query_tree[0].children
-    else:
-        sub_tree = []
-        for tree in query_tree:
-            sites = db.get_all(session, select(Site).options(load_only("id")).where(Site.enterprise_id ==  tree.key[1]))
-            sites_id = []
-            for site in sites:
-                sites_id.append(site[0].id)
-            children = tree.children[:]
-            for child in children:
-                if child.key[1] != -1 and child.key[1] not in sites_id:
-                    # Remove This Site Tree From Origin Tree
-                    tree.children.remove(child)
-                
-    or_conditions = []
-    if len(query_tree) > 0:
-        for tree in query_tree:
-            sub_and_condition = add_and_condition_in_tree(tree)
-            print(sub_and_condition)
-            if sub_and_condition :
-                or_conditions.append(and_(*sub_and_condition))
-    if len(or_conditions) > 0:
-        # Add Or Condition For Entire Matched Trees.  
-        statement = statement.where(or_(*or_conditions))
-        print('tree statement = ', statement)    
-    return statement  
 
 """ Add new cameras. """
 @camera_router.post("/")
 async def add_new_cameras(new_cameras: List[Camera],
-                            session = Depends(get_session)) -> dict:
+                          authorization: Authorization = Security(scopes=['enterprise.site.camera', 'c']),
+                          session = Depends(get_session)) -> dict:
     for new_camera in new_cameras:
         cameras = db.get_all(session, select(Camera).where(Camera.ip == new_camera.ip))
         if cameras:
@@ -156,65 +79,52 @@ async def get_camera_by_fields(enterprise_id: int = Query(default=None),
                                 sorted: str = Query(default=None, regex="^[+-](id|site_id|ip|name)"),
                                 common_params: CommonQueryParams = Depends(),
                                 authorization: Authorization = Security(scopes=['enterprise.site.camera', 'r']),
-                                session = Depends(get_session)):
-    statement = select(Camera)
+                                cursor = Depends(get_cursor)):
     # This Block Verify Query Params With Tag Qualifier Authorizarion Tree.
     # If Size Of Matched Trees List Is 0, Query Params List Don't Match Any Tag Qualifier Authorization.
     # Else, We Have Matched_Trees. And Decorate Staetment With Matched_Tree.
     matched_trees = verify_query_params([enterprise_id, site_id, id], authorization.key)
     if len(matched_trees) == 0:
-        return {"Response" : "Not Found"}
-    for tree in matched_trees:
-        print('-------------')
-        print_subtree(tree)
-    print(tree_to_query(matched_trees))
-    # statement = decor_site_statement(matched_trees, statement)
-    
-    if enterprise_id != None:
-        sites = db.get_all(session, select(Site).options(load_only("id")).where(Site.enterprise_id == enterprise_id))
-        sites_id = []
-        for site in sites:
-            sites_id.append(site[0].id)
-        statement = statement.where(Camera.site_id.in_(sites_id))
-    if site_id != None:
-        statement = statement.where(Camera.site_id == site_id)
-    if id != None:
-        statement = statement.where(Camera.id == id)
-    if name != None:
-        statement = statement.where(Camera.name == name)
-    if ip != None:
-        statement = statement.where(Camera.ip == ip)
-    if description != None:
-        statement = statement.filter(Camera.description.contains(description))
-    if common_params.search != None:
-        statement = statement.filter(Camera.name.contains(common_params.search))
-    if sorted != None:
-        if sorted[0] == "-":
-            if sorted[1:] == 'id':
-                statement = statement.order_by(Camera.id.desc())
-            elif sorted[1:] == 'site_id':
-                statement = statement.order_by(Camera.site_id.desc())
-            elif sorted[1:] == 'ip':
-                statement = statement.order_by(Camera.ip.desc())
-            elif sorted[1:] == 'name':
-                statement = statement.order_by(Camera.name.desc())
-        elif sorted[0] == "+":
-            if sorted[1:] == 'id':
-                statement = statement.order_by(Camera.id.asc())
-            elif sorted[1:] == 'site_id':
-                statement = statement.order_by(Camera.site_id.asc())
-            elif sorted[1:] == 'ip':
-                statement = statement.order_by(Camera.ip.asc())
-            elif sorted[1:] == 'name':
-                statement = statement.order_by(Camera.name.asc())
+        return []
+    filter_id_param = camera_tree_to_query(matched_trees)
+    if filter_id_param != "":
+        filter_id_param  = "and " + filter_id_param
         
-    if common_params.limit != None and common_params.limit > 0:
-        statement = statement.limit(common_params.limit)
-
-    cameras = db.get_all(session, statement)
-    if not cameras:
-        return {"Response" : "Not Found!"}
-    return [camera[0] for camera in cameras]
+    limit_param, search_param, sort_param, ip_param, name_param, description_param = "", "", "", "", "", ""
+    print('common_params.search = ', common_params.search)
+    if common_params.limit != None and common_params.limit != "":
+        limit_param += f"limit {common_params.limit}"
+    if common_params.search != None:
+        search_param += f"and camera.name like '%{common_params.search}%'"
+    if sorted != None:
+        if sorted[0] == "+":
+            sort_param += f"order by camera.{sorted[1:]}"
+        else:
+            sort_param += f"order by camera.{sorted[1:]} desc"
+    if ip != None:
+        ip_param += f"and camera.ip = '{ip}'"
+    if name != None:
+        name_param += f"and camera.name = '{name}'"
+    if description != None:
+        description_param += f"and camera.description like '%{description}%'"
+    statement = f"select camera.id, camera.site_id, camera.ip, camera.name, "\
+                    "camera.description, camera.rtsp_uri, camera.stream "\
+                    "from camera, site "\
+                    "where camera.site_id = site.id {} {} {} {} {} {} {};"\
+                    .format(filter_id_param, name_param, ip_param, description_param, search_param, sort_param, limit_param)
+    print("statement = ", statement)
+    try:
+        cursor.execute(statement)
+        cameras = cursor.fetchall()
+    except Exception as e:
+        raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail = str(e)
+            )
+    list_camera = [{'id':camera[0], 'site_id':camera[1], 'ip':camera[2], 'name':camera[3], 
+                    'description': camera[4], 'rtsp_uri':camera[5], 'stream':camera[6]} for camera in cameras]
+    # print(list_camera)
+    return JSONResponse(content=jsonable_encoder(list_camera))
 
 """ Get an camera onvif profile by ip address. """
 @camera_router.get("/profiles")
@@ -265,9 +175,14 @@ async def discovery_camera_external_network_unreliable(ip:str = Query(), session
 @camera_router.put("/", response_model=Camera)
 async def update_camera_info(body: CameraUpdate, 
                             id: int = Query(), 
+                            authorization: Authorization = Security(scopes=['enterprise.site.camera', 'u']),
                             session = Depends(get_session)):
     camera = db.get_by_id(session, select(Camera).where(Camera.id == id))
     if camera:
+        site = db.get_by_id(session, select(Site).where(Site.id == camera.site_id))
+        matched_trees = verify_query_params([site.enterprise_id, camera.site_id, camera.id], authorization.key)
+        if len(matched_trees) == 0:
+            return {"Response" : "Permission Denied!"}
         camera_data = body.dict(exclude_unset=True)
         for key, value in camera_data.items():
             setattr(camera, key, value)
@@ -281,9 +196,15 @@ async def update_camera_info(body: CameraUpdate,
     
 """ Delete a camera. Apply for root user. """
 @camera_router.delete("/")
-async def delete_a_camera(id: int = Query(), session = Depends(get_session)):
+async def delete_a_camera(id: int = Query(), 
+                          authorization: Authorization = Security(scopes=['enterprise.site.camera', 'd']),
+                          session = Depends(get_session)):
     camera = db.get_by_id(session, select(Camera).where(Camera.id == id))
     if camera:
+        site = db.get_by_id(session, select(Site).where(Site.id == camera.site_id))
+        matched_trees = verify_query_params([site.enterprise_id, camera.site_id, camera.id], authorization.key)
+        if len(matched_trees) == 0:
+            return {"Response" : "Permission Denied!"}
         db.delete(session, camera)
         return {
             "Response": "Camera Deleted Successfully"

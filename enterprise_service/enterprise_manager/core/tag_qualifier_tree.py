@@ -199,12 +199,79 @@ def print_subtree(subtree):
     for child in children:
         print_subtree(child)
 
+def gender_query(tree):
+    if tree.key[1] == -1 and tree.key[0] != -1:
+        return ""
+    id = ""
+    if tree.key[1] != -1:
+        id = tree.name + str(tree.key[1])
+
+    sub_id = ""
+    for child in tree.children:
+        if sub_id == "":
+            if id != "":
+                sub_id += "( " + gender_query(child)
+            else:
+                sub_id += gender_query(child)
+        else:
+            sub_id += " or " + gender_query(child)
+        
+    if sub_id != "":
+        if id == "":
+            id = "(" + sub_id + ")"
+        else:
+            if sub_id != "( ":
+                sub_id += " )"
+                id  = "( " + id + " and " + sub_id + " )"   
+    return id
+
+def labeling_tree(tree):
+    if tree.key[0] == -1:
+        tree.name = 'root'
+    elif tree.key[0] == 0:
+        tree.name = 'site.enterprise_id = '
+    elif tree.key[0] == 1:
+        tree.name = 'camera.site_id = '
+    elif tree.key[0] == 2:
+        tree.name = 'camera.id = '
+    for child in tree.children:
+        labeling_tree(child)
+        
+def tree_to_query(tree_list):
+    root = Tree((-1,-1,-1,-1))
+    root.name = 'root'
+    for tree in tree_list:
+        root.add_child(tree)
+    labeling_tree(root)
+    # print_subtree(root)
+    return gender_query(root)
+
+def site_labeling_tree(tree):
+    if tree.key[0] == -1:
+        tree.name = 'root'
+    elif tree.key[0] == 0:
+        tree.name = 'site.enterprise_id = '
+    elif tree.key[0] == 1:
+        tree.name = 'site.id = '
+    for child in tree.children:
+        site_labeling_tree(child)
+        
+def site_tree_to_query(tree_list):
+    root = Tree((-1,-1,-1,-1))
+    root.name = 'root'
+    for tree in tree_list:
+        root.add_child(tree)
+    site_labeling_tree(root)
+    # print_subtree(root)
+    return gender_query(root)
+
 if __name__ == '__main__':
-    query_params = [1,2,2,None]
-    # tag_qualifiers = [[4,3,-1], [4,4,-1], [4,5,-1], [2,2,3], [2,1,1], [2,5,4]]
-    tag_qualifiers = [[1,2,1,9], [1,2,2,10], [1,2,3,11], [1,2,3,12], [1,4,7,13], [1,4,7,14], [1,4,7,15]]
+    query_params = [None,None,None]
+    tag_qualifiers = [[1,2,5],[1,2,6], [1,3,-1], [1,4,-1]]
+    # tag_qualifiers = [[1,2,1,9], [1,2,2,10], [1,2,3,11], [1,2,3,12], [1,4,7,13], [1,4,7,14], [1,4,7,15]]
     match_tree_list = verify_query_params(query_params, tag_qualifiers) 
     print(len(match_tree_list))
     for tree in match_tree_list:
         print('------------')
         print_subtree(tree)
+    print(site_tree_to_query(match_tree_list))
