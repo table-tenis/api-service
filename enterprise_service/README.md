@@ -120,6 +120,28 @@ docker-compose up -d
 - ```/api/xface/v1/cameras/discovery/unreliable``` : Discovery a camera if it has not existed in database. GET METHOD requires ip address of camera to discovery as a query parameter:
   - ip : to discovery of a camera ip address.
 
+## **Create User Tag Qualifier Tree From User Tag Qualifier**
+- **Assumed, we have user1 with permission like that:**
+
+| username  | tag_type | tag_qualifier | permissions |
+| :------------- | :------------- | :-------------: | :-------------: |
+| user1  | enterprise.site.camera  | 1.1.1 | crud |
+| user1  | enterprise.site.camera  | 1.1.2 | crud |
+| user1  | enterprise.site.camera  | 1.2.-1 | crud |
+| user1  | enterprise.site.camera  | 1.3.-1 | crud |
+| user1  | enterprise.site.camera  | 2.5.10 | crud |
+| user1  | enterprise.site.camera  | 2.5.11 | crud |
+| user1  | enterprise.site.camera  | 2.5.12 | crud |
+| user1  | enterprise.site.camera  | 3.-1.-1 | crud |
+
+- From tag qualifier set : [1,1,1], [1,1,2], [1,2,-1], [1,3,-1], [2,5,10], [2,5,11], [2,5,12], [3,-1,-1] we create user tag qualifier tree like that:
+
+<img src="image/tag_tree_1.jpg">
+
+- We need relable tree to have all unique node. We use a tuple include 4 fields **(depth, qualifier id, group id, parent qualifier id)** to distinct all node in tree. After that, we can construct a user tag qualifier tree like that:
+
+<img src="image/tag_tree_2.jpg">
+
 ## **Verify Query Params With User Tag Qualifier Tree**
 ### **Clarify**
 - **Assumed, we have user1 with permission like that:**
