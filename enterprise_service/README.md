@@ -10,7 +10,8 @@
 - redis
 - argon2
 - rsa
-- mariadb
+- pymysql
+- aiomysql
 - python-jose
 - netifaces
 - dynaconf
@@ -119,4 +120,108 @@ docker-compose up -d
 - ```/api/xface/v1/cameras/discovery/unreliable``` : Discovery a camera if it has not existed in database. GET METHOD requires ip address of camera to discovery as a query parameter:
   - ip : to discovery of a camera ip address.
 
+## **Verify Query Params With User Tag Qualifier Tree**
+### **Clarify**
+- **Assumed, we have user1 with permission like that:**
 
+| username  | tag_type | tag_qualifier | permissions |
+| :------------- | :------------- | :-------------: | :-------------: |
+| user1  | enterprise  | 2 | admin |
+| user1  | enterprise.site  | 1.2 | crud |
+| user1  | enterprise.site  | 1.3 | cr-- |
+| user1  | enterprise.site  | 1.4 | -r-- |
+| user1  | enterprise.site  | 1.5 | -ru- |
+
+- When user1 want to get site resources. We construct user tag qualifier tree like that:
+
+<img src="image/tree_depth_2.jpg">
+
+- **Case 1:** If query params **[enterprise_id, site_id] = [None, None] (or [-1, -1])**. We will prune user tag qualifier tree by query params to get matched tree. In this case matched tree is:
+
+
+
+<img src="image/tree_depth_2_0.jpg">
+
+- **Case 2:** If query params **[enterprise_id, site_id] = [1, None] (or [1, -1])**. Matched tree is:
+
+<img src="image/tree_depth_2_1.jpg">
+
+- **Case 3:** If query params **[enterprise_id, site_id] = [2, None] (or [2, -1])**. Matched tree is:
+
+<img src="image/tree_depth_2_2.jpg">
+
+- **Case 4:** If query params **[enterprise_id, site_id] = [2, 10]**. Matched tree is:
+
+<img src="image/tree_depth_1_1.jpg">
+
+- **Case 5:** If query params **[enterprise_id, site_id] = [1, 3]**. Matched tree is:
+
+<img src="image/tree_depth_2_3.jpg">
+
+- **Case 6:** If query params **[enterprise_id, site_id] = [1, 7]**. Matched tree is not found:
+
+- **After Found Matched Tree. We convert matched to satisfied condition statement query. For each above case, we have condition statement is**
+
+  - **Case 1:** (site.enterprise_id = 1 and (site.id = 2 or site.id = 3 or site.id = 4 or site.id = 5)) or (site.enterprise_id = 2)
+  - **Case 2:** (site.enterprise_id = 1 and (site.id = 2 or site.id = 3 or site.id = 4 or site.id = 5))
+  - **Case 3:** (site.enterprise_id = 2)
+  - **Case 4:** (site.enterprise_id = 2 and site.id = 10)
+  - **Case 5:** (site.enterprise_id = 1 and site.id = 3)
+
+- **We find condition statement query by using recursive function from root of matched tree to smallest children in the matched tree**
+- **These functions look like that:**
+```
+# gender_query to create condition statement query.
+def gender_query(tree):
+    if tree.key[1] == -1 and tree.key[0] != -1:
+        return ""
+    id = ""
+    if tree.key[1] != -1:
+        id = tree.name + str(tree.key[1])
+
+    sub_id = ""
+    for child in tree.children:
+        if sub_id == "":
+            if id != "":
+                sub_id += "( " + gender_query(child)
+            else:
+                sub_id += gender_query(child)
+        else:
+            sub_id += " or " + gender_query(child)
+        
+    if sub_id != "":
+        if id == "":
+            id = "(" + sub_id + ")"
+        else:
+            if sub_id != "( ":
+                sub_id += " )"
+                id  = "( " + id + " and " + sub_id + " )"   
+    return id
+
+# Labeling for site matched tree.
+def site_labeling_tree(tree):
+    if tree.key[0] == -1:
+        tree.name = 'root'
+    elif tree.key[0] == 0:
+        tree.name = 'site.enterprise_id = '
+    elif tree.key[0] == 1:
+        tree.name = 'site.id = '
+    for child in tree.children:
+        site_labeling_tree(child)
+
+# Create condition statement query by site matched tree. 
+def site_tree_to_query(tree_list):
+    root = Tree((-1,-1,-1,-1))
+    root.name = 'root'
+    for tree in tree_list:
+        root.add_child(tree)
+    site_labeling_tree(root)
+    # call gender_query
+    return gender_query(root)   
+```
+
+### **Summary**
+**To verify query params with user tag qualifier authorization tree, we have 3 steps:**
+- **Step 1:** If user has permission with the resource. Create **user tag qualifier authorization tree**. Such as picture 1.
+- **Step 2:** Pruning **user tag qualifier authorization tree** by **query params** to get **matched tree**.
+- **Step 3:** If *matched tree** is not empty. Convert **matched tree** to **condition statement query** to filter resource.
