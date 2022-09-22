@@ -7,15 +7,16 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from fastapi import APIRouter, HTTPException, status
 import redis
 # import mariadb
+import pymysql.cursors
 import sys, os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from config.config import settings
 config = {
-    'host': '127.0.0.1',
-    'port': 3308,
-    'user': 'root',
-    'password': 'root',
-    'database': 'xface_system'
+    'host': settings.database.host,
+    'port': settings.database.port,
+    'user': settings.database.user,
+    'password': settings.database.password,
+    'database': settings.database.database_name
 }
         
 DATABASE_URL = f"mysql+pymysql://{settings.database.user}:{settings.database.password}@{settings.database.host}:{settings.database.port}/{settings.database.database_name}"
@@ -43,12 +44,18 @@ def get_session():
 #         self.conn = mariadb.connect(**config)
 #         self.cur = self.conn.cursor()
 
-# def get_cur():
-#     conn = mariadb.connect(**config)
-#     with conn.cursor() as cur:
-#         yield cur
-#         cur.close()
-#         conn.close()
+def get_cursor():
+    try:
+        conn = pymysql.connect(**config)
+    except Exception as e:
+        raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail = str(e)
+            )
+    with conn.cursor() as cursor:
+        yield cursor
+        cursor.close()
+        conn.close()
 
 class DataBase:
     def __init__(self):
