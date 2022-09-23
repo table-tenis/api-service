@@ -132,15 +132,15 @@ async def get_camera_by_fields(enterprise_id: int = Query(default=None),
 
 """ Get an camera onvif profile by ip address. """
 @camera_router.get("/profiles")
-async def get_camera_profile(ip: str = Query(),
+def get_camera_profile(ip: str = Query(),
                         session = Depends(get_session)):
-    profile = await profiling_camera(ip)
+    profile = profiling_camera(ip)
     return profile
 
 """ Local Network Camera Discovery. """
 @camera_router.get("/discovery/local")
-async def discovery_camera_local_network(session = Depends(get_session)):
-    ip_addrs = await run_wsdiscovery("239.255.255.250")
+def discovery_camera_local_network(session = Depends(get_session)):
+    ip_addrs = run_wsdiscovery("239.255.255.250")
     ips_exist = []
     for ip in ip_addrs:
         cameras = db.get_all(session, select(Camera).where(Camera.ip == ip))
@@ -153,26 +153,27 @@ async def discovery_camera_local_network(session = Depends(get_session)):
 
 """ Outside Network Camera Discovery by ip address. """
 @camera_router.get("/discovery/reliable")
-async def discovery_camera_external_network_reliable(ip:str = Query(), session = Depends(get_session)):
-    ip_addr = await run_wsdiscovery(ip)
+def discovery_camera_external_network_reliable(ip:str = Query(), session = Depends(get_session)):
+    ip_addr = run_wsdiscovery(ip)
+    # return ip_addr
     cameras = db.get_all(session, select(Camera).where(Camera.ip == ip))
     if (len(ip_addr) == 0) and cameras:
         res = ip + " Is Existed In Database, But Can Not Discovery"
-        return {"Response": res}
+        return JSONResponse(jsonable_encoder({"Response": res}))
     elif (len(ip_addr) == 1) and cameras:
         res = ip + " Is Exist In Database, And Can Discovery"
-        return {"Response": res}
+        return JSONResponse(jsonable_encoder({"Response": res}))
     else:
-        return ip_addr
+        return JSONResponse(jsonable_encoder(ip_addr))
     
 """ Outside Network Camera Discovery by ip address. """
 @camera_router.get("/discovery/unreliable")
-async def discovery_camera_external_network_unreliable(ip:str = Query(), session = Depends(get_session)):
+def discovery_camera_external_network_unreliable(ip:str = Query(), session = Depends(get_session)):
     cameras = db.get_all(session, select(Camera).where(Camera.ip == ip))
     if cameras:
         res = ip + " Is Exist In Database, Does Not Discovery"
         return {"Response": res}
-    ip_addr = await run_wsdiscovery(ip)
+    ip_addr = run_wsdiscovery(ip)
     return ip_addr
 
 """ Update a camera info. """ 

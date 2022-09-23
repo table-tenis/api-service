@@ -44,7 +44,7 @@ python -m pip install --upgrade onvif_zeep
 - *schemas.py:* contains some data object to validate body requests, responses.
 - *dependencies.py:* contains dependencies for api endpoints.
 - *routes:* contains api endpoints.
-- *core:* contains database and helper functions.
+- *core:* contains database, helper functions, camera_discovery, custom_deamon for camera discovery, tag_qualifier_tree.
 - *config:* contains database config, SECRET_KEY config.
 - *camera_discovery:* contain functions to discovery cameras.
 - *custom_daemon: * contains custom classes for web service discovery.
@@ -71,11 +71,11 @@ python -m pip install --upgrade onvif_zeep
 - Update camera information.
 - Delete a camera.
 ## **How To Run**
-- Build account_service docker image.
+- Build enterprise_service docker image.
 ```
-docker build -t account_service .
+docker build -t enterprise_service .
 ```
-- Run account_service container.
+- Run enterprise_service container.
 ```
 docker-compose up -d
 ```
@@ -246,4 +246,4 @@ def site_tree_to_query(tree_list):
 **To verify query params with user tag qualifier authorization tree, we have 3 steps:**
 - **Step 1:** If user has permission with the resource. Create **user tag qualifier authorization tree**. Such as picture 1.
 - **Step 2:** Pruning **user tag qualifier authorization tree** by **query params** to get **matched tree**.
-- **Step 3:** If *matched tree** is not empty. Convert **matched tree** to **condition statement query** to filter resource.
+- **Step 3:** If **matched tree** is not empty. Convert **matched tree** to **condition statement query** to filter resource.

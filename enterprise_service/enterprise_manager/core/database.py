@@ -36,6 +36,7 @@ def conn():
 def get_session():
     with Session(engine) as session:
         yield session
+        session.close()
     # with sessionmaker(engine, expire_on_commit=False, class_=AsyncSession) as session:
     #     yield session
 
