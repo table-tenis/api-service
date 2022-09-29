@@ -11,14 +11,13 @@ from fastapi.security import (
 # dir = os.path.dirname(__file__)
 # sys.path.insert(0, os.path.abspath(os.path.join(dir, '.')))
 # sys.path.insert(0, os.path.abspath(os.path.join(dir, '..')))
-from json import dumps
+
 from config.config import settings
 
-def create_access_token(username: str, authorization: dict):
+def create_access_token(username: str):
     payload = {
         "username": username,
-        "authorization": dumps(authorization),
-        "expires": time.time() + settings.TOKEN_EXPIRES
+        "expires": time.time() + 3600
     }
 
     token = jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")

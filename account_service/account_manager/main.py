@@ -29,5 +29,5 @@ async def add_process_time_header(request: Request, call_next):
 app.include_router(account_router, prefix="/api/xface/v1/accounts")
 app.include_router(acl_router, prefix="/api/xface/v1/acls")
 if __name__ == "__main__":
-    uvicorn.run("main:app", host=settings.host, port=settings.port, reload=True)
+    uvicorn.run("main:app", host=settings.SERVICE_HOST, port=settings.SERVICE_PORT, reload=True)
 

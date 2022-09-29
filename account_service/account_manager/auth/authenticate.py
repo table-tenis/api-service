@@ -20,14 +20,16 @@ async def authenticate(request: Request, temp: str = Depends(oauth2_scheme)) -> 
     token = authorization.split(" ")[1]
     decoded_token = verify_access_token(token)
     try:
-        if redis_db.exists(token):
-            raise HTTPException(
-                status_code = status.HTTP_400_BAD_REQUEST,
-                detail = "Token Blocked!"
-            )
+        token_exist = redis_db.exists(token)
     except Exception as e:
         raise HTTPException(
                 status_code = status.HTTP_400_BAD_REQUEST,
                 detail = str(e)
             )
+    if token_exist:
+        raise HTTPException(
+            status_code = status.HTTP_400_BAD_REQUEST,
+            detail = "Token Blocked!"
+        )
+    
     return {"decoded_token" : decoded_token, "token" : token}

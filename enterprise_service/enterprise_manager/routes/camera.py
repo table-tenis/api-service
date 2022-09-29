@@ -23,10 +23,6 @@ def camera_labeling_tree(tree):
     if tree.key[0] == -1:
         tree.name = 'root'
     elif tree.key[0] == 0:
-        tree.name = 'site.enterprise_id = '
-    elif tree.key[0] == 1:
-        tree.name = 'camera.site_id = '
-    elif tree.key[0] == 2:
         tree.name = 'camera.id = '
     for child in tree.children:
         camera_labeling_tree(child)
@@ -43,7 +39,7 @@ def camera_tree_to_query(tree_list):
 """ Add new cameras. """
 @camera_router.post("/")
 async def add_new_cameras(new_cameras: List[Camera],
-                          authorization: Authorization = Security(scopes=['enterprise.site.camera', 'c']),
+                          authorization: Authorization = Security(scopes=['camera', 'c']),
                           session = Depends(get_session)) -> dict:
     for new_camera in new_cameras:
         cameras = db.get_all(session, select(Camera).where(Camera.ip == new_camera.ip))
@@ -72,28 +68,29 @@ async def add_new_cameras(new_cameras: List[Camera],
     
 """ Get site info by site name or side id. Apply for root user. """
 @camera_router.get("/")
-async def get_camera_by_fields(enterprise_id: int = Query(default=None),
-                                site_id: int = Query(default=None),
+async def get_camera_by_fields(site_id: int = Query(default=None),
                                 id: int = Query(default=None), name: str = Query(default=None),
                                 ip: str = Query(default=None), description: str = Query(default=None),
+                                search: str = Query(default=None, regex="(ip|name|description)-"),
                                 sorted: str = Query(default=None, regex="^[+-](id|site_id|ip|name)"),
-                                common_params: CommonQueryParams = Depends(),
-                                authorization: Authorization = Security(scopes=['enterprise.site.camera', 'r']),
+                                limit: int = Query(default=None, gt=0),
+                                authorization: Authorization = Security(scopes=['camera', 'r']),
                                 cursor = Depends(get_cursor)):
     # This Block Verify Query Params With Tag Qualifier Authorizarion Tree.
     # If Size Of Matched Trees List Is 0, Query Params List Don't Match Any Tag Qualifier Authorization.
     # Else, We Have Matched_Trees. And Decorate Staetment With Matched_Tree.
-    matched_trees = verify_query_params([enterprise_id, site_id, id], authorization.key)
+    matched_trees = verify_query_params([id], authorization.key)
     if len(matched_trees) == 0:
         return []
     filter_id_param = camera_tree_to_query(matched_trees)
         
-    limit_param, search_param, sort_param, ip_param, name_param, description_param = "", "", "", "", "", ""
-    print('common_params.search = ', common_params.search)
-    if common_params.limit != None and common_params.limit != "":
-        limit_param += f"limit {common_params.limit}"
-    if common_params.search != None:
-        search_param += f"camera.name like '%{common_params.search}%'"
+    limit_param, search_param, sort_param, ip_param, name_param, description_param, site_id_param = "", "", "", "", "", "", ""
+    if limit != None and limit != "":
+        limit_param += f"limit {limit}"
+    if search != None:
+        search = search.split('-')
+        if search[1] != '':
+            search_param += f"camera.{search[0]} like '%{search[1]}%'"
     if sorted != None:
         if sorted[0] == "+":
             sort_param += f"order by camera.{sorted[1:]}"
@@ -105,16 +102,23 @@ async def get_camera_by_fields(enterprise_id: int = Query(default=None),
         name_param += f"camera.name = '{name}'"
     if description != None:
         description_param += f"camera.description like '%{description}%'"
+    if site_id != None:
+        site_id_param += f"camera.site_id = {site_id}"
     condition_statement = ""
-    conditions_list = [filter_id_param, name_param, ip_param, description_param, search_param]
+    conditions_list = [filter_id_param, site_id_param, name_param, ip_param, description_param, search_param]
+    first_add = False
     for condition in conditions_list:
         if condition != '':
-            condition_statement += ' and ' + condition
+            if not first_add:
+                condition_statement = 'where ' + condition
+                first_add = True
+            else:
+                condition_statement += ' and ' + condition
     print(condition_statement)
     statement = f"select camera.id, camera.site_id, camera.ip, camera.name, "\
                     "camera.description, camera.rtsp_uri, camera.stream "\
-                    "from camera, site "\
-                    "where camera.site_id = site.id {} {} {};"\
+                    "from camera "\
+                    "{} {} {};"\
                     .format(condition_statement, sort_param, limit_param)
     print("statement = ", statement)
     try:
@@ -180,12 +184,11 @@ def discovery_camera_external_network_unreliable(ip:str = Query(), session = Dep
 @camera_router.put("/", response_model=Camera)
 async def update_camera_info(body: CameraUpdate, 
                             id: int = Query(), 
-                            authorization: Authorization = Security(scopes=['enterprise.site.camera', 'u']),
+                            authorization: Authorization = Security(scopes=['camera', 'u']),
                             session = Depends(get_session)):
     camera = db.get_by_id(session, select(Camera).where(Camera.id == id))
     if camera:
-        site = db.get_by_id(session, select(Site).where(Site.id == camera.site_id))
-        matched_trees = verify_query_params([site.enterprise_id, camera.site_id, camera.id], authorization.key)
+        matched_trees = verify_query_params([camera.id], authorization.key)
         if len(matched_trees) == 0:
             return {"Response" : "Permission Denied!"}
         camera_data = body.dict(exclude_unset=True)
@@ -202,12 +205,11 @@ async def update_camera_info(body: CameraUpdate,
 """ Delete a camera. Apply for root user. """
 @camera_router.delete("/")
 async def delete_a_camera(id: int = Query(), 
-                          authorization: Authorization = Security(scopes=['enterprise.site.camera', 'd']),
+                          authorization: Authorization = Security(scopes=['camera', 'd']),
                           session = Depends(get_session)):
     camera = db.get_by_id(session, select(Camera).where(Camera.id == id))
     if camera:
-        site = db.get_by_id(session, select(Site).where(Site.id == camera.site_id))
-        matched_trees = verify_query_params([site.enterprise_id, camera.site_id, camera.id], authorization.key)
+        matched_trees = verify_query_params([camera.id], authorization.key)
         if len(matched_trees) == 0:
             return {"Response" : "Permission Denied!"}
         db.delete(session, camera)

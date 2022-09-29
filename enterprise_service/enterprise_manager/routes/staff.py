@@ -7,18 +7,18 @@ from typing import List
 from sqlmodel import Session, select, and_, or_, not_
 from sqlalchemy.orm import load_only
 
-from models import Site, SiteBase
-from schemas import SiteUpdate
+from models import Staff, StaffBase
+from schemas import StaffUpdate, CameraUpdate
 from dependencies import CommonQueryParams, Authorization
 from core.database import redis_db, get_session, engine, db, get_cursor
 from core.tag_qualifier_tree import Tree, verify_query_params, print_subtree, gender_query
-site_router = APIRouter(tags=["Site"])
+staff_router = APIRouter(tags=["Staff"])
 
 def site_labeling_tree(tree):
     if tree.key[0] == -1:
         tree.name = 'root'
     elif tree.key[0] == 0:
-        tree.name = 'site.id = '
+        tree.name = 'staff.id = '
     for child in tree.children:
         site_labeling_tree(child)
         
@@ -31,32 +31,33 @@ def site_tree_to_query(tree_list):
     # print_subtree(root)
     return gender_query(root)           
 
-""" Add new site. """
-@site_router.post("/")
-async def add_a_new_site(site: Site, 
-                         authorization: Authorization = Security(scopes=['site', 'c']),
+""" Add new staff. """
+@staff_router.post("/")
+async def add_a_new_staff(staff: Staff, 
+                         authorization: Authorization = Security(scopes=['staff', 'c']),
                          session = Depends(get_session)) -> dict:
-    if site.id != None:
-        site_exist = db.get_by_id(session, select(Site).where(Site.id == site.id))
-        if site_exist:
+    if staff.id != None:
+        staff_exist = db.get_by_id(session, select(Staff).where(Staff.id == staff.id))
+        if staff_exist:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Site Supplied Id Is Existed."
+                detail="Staff Supplied Id Is Existed."
             )
-    site = db.add(session, site)
+    staff = db.add(session, staff)
     return {
-        "Response": "New Site Successfully Registered!",
-        "Site_Id": site.id
+        "Response": "New Staff Successfully Registered!",
+        "Staff_Id": staff.id
     }
 
-""" Get site info by site name or side id. Apply for root user. """
-@site_router.get("/")
+""" Get staffs. """
+@staff_router.get("/")
 async def get_sites(id: int = Query(default=None), 
-                    name: str = Query(default=None),
-                    search: str = Query(default=None, regex="(name|description|note)-"),
-                    sorted: str = Query(default=None, regex="^[+-](id|name)"),
+                    staff_code: str = Query(default=None),
+                    email_code: str = Query(default=None),
+                    search: str = Query(default=None, regex="(id|staff_code|email_code|unit|title|fullname)-"),
+                    sorted: str = Query(default=None, regex="^[+-](id|staff_code|email_code|unit|title|fullname)"),
                     limit: int = Query(default=None, gt=0),
-                    authorization: Authorization = Security(scopes=['site', 'r']),
+                    authorization: Authorization = Security(scopes=['staff', 'r']),
                     cursor = Depends(get_cursor)):
     # This Block Verify Query Params With Tag Qualifier Authorizarion Tree.
     # If Size Of Matched Trees List Is 0, Query Params List Don't Match Any Tag Qualifier Authorization.
@@ -65,26 +66,27 @@ async def get_sites(id: int = Query(default=None),
     if len(matched_trees) == 0:
         return []
     filter_id_param = site_tree_to_query(matched_trees)
-    # if filter_id_param != "":
-    #     filter_id_param  = "and " + filter_id_param
-        
-    limit_param, search_param, sort_param, name_param = "", "", "", ""
+
+    limit_param, search_param, sort_param, staff_code_param, email_code_param = "", "", "", "", ""
     if limit != None and limit != "":
         limit_param += f"limit {limit}"
     if search != None:
         search = search.split('-')
         if search[1] != '':
-            search_param += f"site.{search[0]} like '%{search[1]}%'"
+            search_param += f"staff.{search[0]} like '%{search[1]}%'"
+        print('search param = ', search_param)
     if sorted != None:
         if sorted[0] == "+":
-            sort_param += f"order by site.{sorted[1:]}"
+            sort_param += f"order by staff.{sorted[1:]}"
         else:
-            sort_param += f"order by site.{sorted[1:]} desc"
-    if name != None:
-        name_param += f"site.name = '{name + ''}'"
+            sort_param += f"order by staff.{sorted[1:]} desc"
+    if staff_code != None:
+        staff_code_param += f"staff.staff_code = '{staff_code}'"
+    if email_code != None:
+        email_code_param += f"staff.email_code = '{email_code}'"
     
     condition_statement = ""
-    conditions_list = [filter_id_param, name_param, search_param]
+    conditions_list = [filter_id_param, staff_code_param, email_code_param, search_param]
     first_add = False
     for condition in conditions_list:
         if condition != '':
@@ -94,65 +96,70 @@ async def get_sites(id: int = Query(default=None),
             else:
                 condition_statement += ' and ' + condition
     print(condition_statement)
-    statement = f"select site.id, site.name, site.description, site.note "\
-                    "from site "\
+    statement = f"select staff.id, staff.staff_code, staff.email_code, "\
+                    "staff.unit, staff.title, staff.fullname, staff.nickname, staff.cellphone, "\
+                    "staff.date_of_birth, staff.sex, staff.state, staff.notify_enable, staff.note "\
+                    "from staff "\
                     "{} {} {};"\
                     .format(condition_statement, sort_param, limit_param)
     print("statement = ", statement)
     try:
         cursor.execute(statement)
-        sites = cursor.fetchall()
+        staffs = cursor.fetchall()
     except Exception as e:
         raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail = str(e)
             )
-    list_site = [{'id':site[0], 'name':site[1], 
-                  'description':site[2], 'note': site[3]} for site in sites]
+    list_site = [{'id':staff[0], 'staff_code':staff[1], 'email_code':staff[2], 
+                  'unit': staff[3], 'title': staff[4], 'fullname': staff[5], 
+                  'nickname': staff[6], 'cellphone': staff[7], 'date_of_birth': staff[8], 
+                  'sex': staff[9], 'state': staff[10], 'notify_enable': staff[11], 
+                  'note': staff[12]} for staff in staffs]
     # print(list_camera)
     return JSONResponse(content=jsonable_encoder(list_site))
 
 
 
-""" Update site info. Apply for root user """ 
-@site_router.put("/")
-async def update_site_info(body: SiteUpdate, 
+""" Update staff info""" 
+@staff_router.put("/")
+async def update_site_info(body: StaffUpdate, 
                             id: int = Query(), 
-                            authorization: Authorization = Security(scopes=['site', 'u']),
+                            authorization: Authorization = Security(scopes=['staff', 'u']),
                             session = Depends(get_session)):
-    site = db.get_by_id(session, select(Site).where(Site.id == id))
-    if site:
+    staff = db.get_by_id(session, select(Staff).where(Staff.id == id))
+    if staff:
         matched_trees = verify_query_params([id], authorization.key)
         if len(matched_trees) == 0:
             return {"Response" : "Permission Denied!"}
         
-        site_data = body.dict(exclude_unset=True)
-        for key, value in site_data.items():
-            setattr(site, key, value)
-
-        site = db.add(session, site)
-        return site
+        staff_data = body.dict(exclude_unset=True)
+        for key, value in staff_data.items():
+            setattr(staff, key, value)
+            
+        staff = db.add(session, staff)
+        return staff
         
     raise HTTPException(
         status_code = status.HTTP_404_NOT_FOUND,
         detail="Site Supplied Id Does Not Exist"
     )
     
-""" Delete a site. Apply for root user. """
-@site_router.delete("/")
+""" Delete a staff. """
+@staff_router.delete("/")
 async def delete_a_site(id: int = Query(), 
-                        authorization: Authorization = Security(scopes=['site', 'd']),
+                        authorization: Authorization = Security(scopes=['staff', 'd']),
                         session = Depends(get_session)):
-    site = db.get_by_id(session, select(Site).where(Site.id == id))
-    if site:
+    staff = db.get_by_id(session, select(Staff).where(Staff.id == id))
+    if staff:
         matched_trees = verify_query_params([id], authorization.key)
         if len(matched_trees) == 0:
             return {"Response" : "Permission Denied!"}
-        db.delete(session, site)
+        db.delete(session, staff)
         return {
-            "Response": "Site Deleted Successfully"
+            "Response": "Staff Deleted Successfully"
         }      
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
-        detail="Site Does Not Exist"
+        detail="Staff Does Not Exist"
     )

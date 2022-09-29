@@ -2,10 +2,7 @@ from urllib.request import HTTPBasicAuthHandler
 from fastapi import FastAPI, Request, Response
 
 import time
-from routes.enterprise import enterprise_router
-from routes.camera import camera_router
-from routes.site import site_router
-from routes.staff import staff_router
+from routes.report import report_router
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.authentication import AuthenticationMiddleware
@@ -67,10 +64,7 @@ origins = [
 #     # print("=========== Return Response, response header = ", response.headers)
 #     return response
 
-app.include_router(enterprise_router, prefix="/api/xface/v1/enterprises")
-app.include_router(camera_router, prefix="/api/xface/v1/cameras")
-app.include_router(site_router, prefix="/api/xface/v1/sites")
-app.include_router(staff_router, prefix="/api/xface/v1/staffs")
+app.include_router(report_router, prefix="/api/xface/v1/reports")
 if __name__ == "__main__":
     uvicorn.run("main:app", host=settings.host, port=settings.port, reload=True)
     # config = hypercorn.config.Config()

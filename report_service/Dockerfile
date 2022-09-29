@@ -13,10 +13,10 @@
     RUN mkdir -p /root/.vscode-server/extensions
 
     WORKDIR /usr/src/app
-    COPY requirements.txt ./
-    RUN pip install --no-cache-dir --upgrade -r requirements.txt && rm requirements.txt
+    COPY register/requirements.txt ./
+    RUN pip install --no-cache-dir -r requirements.txt && rm requirements.txt
     ENV TZ Asia/Ho_Chi_Minh
 
-    COPY account_manager /usr/src/app/account_manager
+    COPY enterprise_manager enterprise_manager
 
-    CMD [ "bash", "-c", "python account_manager/main.py" ]
+    CMD [ "bash", "-c", "python enterprise_manager/main.py" ]
