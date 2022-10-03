@@ -12,7 +12,6 @@ from schemas import CameraUpdate
 from core.database import get_session, db, get_cursor
 
 from dependencies import CommonQueryParams, Authorization
-from core.database import redis_db
 from json import dumps
 from core.camera_discovery import run_wsdiscovery, profiling_camera
 from core.tag_qualifier_tree import Tree, verify_query_params, print_subtree, gender_query

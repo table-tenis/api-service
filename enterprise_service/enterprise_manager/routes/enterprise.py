@@ -11,7 +11,7 @@ from sqlalchemy.orm import load_only
 from models import Enterprise, EnterpriseBase
 
 from dependencies import CommonQueryParams, Authorization
-from core.database import redis_db, get_session, engine, db
+from core.database import get_session, engine, db
 
 enterprise_router = APIRouter(tags=["Enterprise"])
 

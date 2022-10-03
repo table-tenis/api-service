@@ -10,7 +10,7 @@ from sqlalchemy.orm import load_only
 from models import Staff, StaffBase
 from schemas import StaffUpdate, CameraUpdate
 from dependencies import CommonQueryParams, Authorization
-from core.database import redis_db, get_session, engine, db, get_cursor
+from core.database import get_session, engine, db, get_cursor
 from core.tag_qualifier_tree import Tree, verify_query_params, print_subtree, gender_query
 staff_router = APIRouter(tags=["Staff"])
 

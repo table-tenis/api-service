@@ -5,21 +5,20 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from fastapi import APIRouter, HTTPException, status
-import redis
 # import mariadb
 import pymysql.cursors
 import sys, os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from config.config import settings
 config = {
-    'host': settings.database.host,
-    'port': settings.database.port,
-    'user': settings.database.user,
-    'password': settings.database.password,
-    'database': settings.database.database_name
+    'host': settings.MARIADB_HOST,
+    'port': settings.MARIADB_PORT,
+    'user': 'root',
+    'password': 'root',
+    'database': settings.MARIADB_NAME
 }
         
-DATABASE_URL = f"mysql+pymysql://{settings.database.user}:{settings.database.password}@{settings.database.host}:{settings.database.port}/{settings.database.database_name}"
+DATABASE_URL = f"mysql+pymysql://root:root@{settings.MARIADB_HOST}:{settings.MARIADB_PORT}/{settings.MARIADB_NAME}"
 print("DATABASE_URL = ", DATABASE_URL)
 engine = create_engine(DATABASE_URL + '?charset=utf8', echo=True)
 BASE = declarative_base(engine)
@@ -27,8 +26,6 @@ BASE = declarative_base(engine)
 # # Create session
 # Session = sessionmaker(bind=engine)
 # session = Session()
-
-redis_db = redis.Redis(host='localhost', port=6379, decode_responses=True)
 
 def conn():
     SQLModel.metadata.create_all(engine, )
@@ -39,11 +36,6 @@ def get_session():
         session.close()
     # with sessionmaker(engine, expire_on_commit=False, class_=AsyncSession) as session:
     #     yield session
-
-# class Cur:
-#     def __init__(self) -> None:
-#         self.conn = mariadb.connect(**config)
-#         self.cur = self.conn.cursor()
 
 def get_cursor():
     try:

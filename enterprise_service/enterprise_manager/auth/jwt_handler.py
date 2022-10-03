@@ -17,7 +17,7 @@ from config.config import settings
 def create_access_token(username: str):
     payload = {
         "username": username,
-        "expires": time.time() + 3600
+        "expires": time.time() + settings.TOKEN_EXPIRES
     }
 
     token = jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")

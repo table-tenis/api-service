@@ -72,7 +72,7 @@ app.include_router(camera_router, prefix="/api/xface/v1/cameras")
 app.include_router(site_router, prefix="/api/xface/v1/sites")
 app.include_router(staff_router, prefix="/api/xface/v1/staffs")
 if __name__ == "__main__":
-    uvicorn.run("main:app", host=settings.host, port=settings.port, reload=True)
+    uvicorn.run("main:app", host=settings.SERVICE_HOST, port=settings.SERVICE_PORT, reload=True)
     # config = hypercorn.config.Config()
     # config._bind = ["172.21.100.174:9083"]
     # from hypercorn.asyncio import serve
