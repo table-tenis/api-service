@@ -21,7 +21,6 @@ import hypercorn
 import ssl
 import asyncio
 from config.config import settings
-from h11._util import LocalProtocolError
 description = """
             Enterprise Manager
         """
@@ -32,27 +31,6 @@ origins = [
     "http://172.21.100.174:8081",
     "https://172.21.100.174:8080"
 ]
-# class MyMiddleware:
-#     def __init__(
-#         self, app: ASGIApp, dispatch: typing.Optional[DispatchFunction] = None
-#     ) -> None:
-#         self.app = app
-#         self.dispatch_func = self.dispatch if dispatch is None else dispatch
-
-#     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-#         await self.app(scope, receive, send)
-#         return
-#     async def dispatch(self, request: Request, call_next):
-#         # do something with the request object, for example
-#         content_type = request.headers.get('Content-Type')
-#         print("================= dispatch", content_type)
-        
-#         # process the request and get the response    
-#         response = await call_next(request)
-        
-#         return response
-
-# app.add_middleware(BaseHTTPMiddleware, some_attribute="some_attribute_here_if_needed")
 
 # @app.middleware("http")
 # async def add_process_time_header(request: Request, call_next):
@@ -66,6 +44,10 @@ origins = [
 #         print("reponse error status_code = ", response.status_code)
 #     # print("=========== Return Response, response header = ", response.headers)
 #     return response
+
+@app.get("/")
+async def healthcheck():
+    return {"message": "Ok"}
 
 app.include_router(enterprise_router, prefix="/api/xface/v1/enterprises")
 app.include_router(camera_router, prefix="/api/xface/v1/cameras")

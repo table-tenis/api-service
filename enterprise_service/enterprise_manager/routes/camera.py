@@ -16,8 +16,8 @@ from json import dumps
 from core.camera_discovery import run_wsdiscovery, profiling_camera
 from core.tag_qualifier_tree import Tree, verify_query_params, print_subtree, gender_query
 camera_router = APIRouter( tags=["Camera"] )
-CAMERA_DISCOVERY_LIST = []
 
+# Labeling to tree nodes for assign condition query
 def camera_labeling_tree(tree):
     if tree.key[0] == -1:
         tree.name = 'root'
@@ -25,7 +25,8 @@ def camera_labeling_tree(tree):
         tree.name = 'camera.id = '
     for child in tree.children:
         camera_labeling_tree(child)
-        
+
+# Camera trees to condition query      
 def camera_tree_to_query(tree_list):
     root = Tree((-1,-1,-1,-1))
     root.name = 'root'
@@ -45,7 +46,7 @@ async def add_new_cameras(new_cameras: List[Camera],
         if cameras:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Ip Supplied Is Existed"
+                detail="At least One Of Ip Supplied Is Existed, Please Update it"
             )
 
     new_cameras = [dict(camera) for camera in new_cameras]
@@ -62,7 +63,7 @@ async def add_new_cameras(new_cameras: List[Camera],
                 detail = e._message()
             )
     return {
-            "Response": "New Privilege Successfully Registered!"
+            "Response": "New Cameras Successfully Registered!"
         }
     
 """ Get site info by site name or side id. Apply for root user. """
@@ -84,12 +85,16 @@ async def get_camera_by_fields(site_id: int = Query(default=None),
     filter_id_param = camera_tree_to_query(matched_trees)
         
     limit_param, search_param, sort_param, ip_param, name_param, description_param, site_id_param = "", "", "", "", "", "", ""
+    
+    # Add limit query
     if limit != None and limit != "":
         limit_param += f"limit {limit}"
+    # Add search query
     if search != None:
         search = search.split('-')
         if search[1] != '':
             search_param += f"camera.{search[0]} like '%{search[1]}%'"
+    # Add order by query
     if sorted != None:
         if sorted[0] == "+":
             sort_param += f"order by camera.{sorted[1:]}"
@@ -103,6 +108,8 @@ async def get_camera_by_fields(site_id: int = Query(default=None),
         description_param += f"camera.description like '%{description}%'"
     if site_id != None:
         site_id_param += f"camera.site_id = {site_id}"
+        
+    # Complete condition statement
     condition_statement = ""
     conditions_list = [filter_id_param, site_id_param, name_param, ip_param, description_param, search_param]
     first_add = False
@@ -136,13 +143,23 @@ async def get_camera_by_fields(site_id: int = Query(default=None),
 """ Get an camera onvif profile by ip address. """
 @camera_router.get("/profiles")
 def get_camera_profile(ip: str = Query(),
-                        session = Depends(get_session)):
-    profile = profiling_camera(ip)
+                       user: str = Query(),
+                       password: str = Query(),
+                       authorization: Authorization = Security(scopes=['camera', 'r']),
+                       session = Depends(get_session)):
+    try:
+        profile = profiling_camera(ip, user, password)
+    except Exception as e:
+        raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail = str(e)
+            )
     return profile
 
 """ Local Network Camera Discovery. """
 @camera_router.get("/discovery/local")
-def discovery_camera_local_network(session = Depends(get_session)):
+def discovery_camera_local_network(authorization: Authorization = Security(scopes=['camera', 'r']),
+                                   session = Depends(get_session)):
     ip_addrs = run_wsdiscovery("239.255.255.250")
     ips_exist = []
     for ip in ip_addrs:
@@ -156,7 +173,9 @@ def discovery_camera_local_network(session = Depends(get_session)):
 
 """ Outside Network Camera Discovery by ip address. """
 @camera_router.get("/discovery/reliable")
-def discovery_camera_external_network_reliable(ip:str = Query(), session = Depends(get_session)):
+def discovery_camera_external_network_reliable(ip:str = Query(), 
+                                               authorization: Authorization = Security(scopes=['camera', 'r']),
+                                               session = Depends(get_session)):
     ip_addr = run_wsdiscovery(ip)
     # return ip_addr
     cameras = db.get_all(session, select(Camera).where(Camera.ip == ip))
@@ -171,7 +190,9 @@ def discovery_camera_external_network_reliable(ip:str = Query(), session = Depen
     
 """ Outside Network Camera Discovery by ip address. """
 @camera_router.get("/discovery/unreliable")
-def discovery_camera_external_network_unreliable(ip:str = Query(), session = Depends(get_session)):
+def discovery_camera_external_network_unreliable(ip:str = Query(), 
+                                                 authorization: Authorization = Security(scopes=['camera', 'r']),
+                                                 session = Depends(get_session)):
     cameras = db.get_all(session, select(Camera).where(Camera.ip == ip))
     if cameras:
         res = ip + " Is Exist In Database, Does Not Discovery"
@@ -181,7 +202,7 @@ def discovery_camera_external_network_unreliable(ip:str = Query(), session = Dep
 
 """ Update a camera info. """ 
 @camera_router.put("/", response_model=Camera)
-async def update_camera_info(body: CameraUpdate, 
+async def update_camera_info(body: CameraBase, 
                             id: int = Query(), 
                             authorization: Authorization = Security(scopes=['camera', 'u']),
                             session = Depends(get_session)):

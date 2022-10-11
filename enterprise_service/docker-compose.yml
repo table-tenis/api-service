@@ -1,12 +1,53 @@
-    version: '3.5'
+version: '3.5'
 
-    services:
-      server:
-        image: dat.local:5001/enterprise_manager:latest
-        build:
-          context: .
-          dockerfile: Dockerfile
-        ports: 
-        - 9889:4444
-        volumes:
-          - $HOME/.vscode-server/extensions:/root/.vscode-server/extensions:rw
+services:
+    # server:
+    #   image: dat.local:5001/account_manager:latest
+    #   build:
+    #     context: .
+    #     dockerfile: Dockerfile
+    #   ports: 
+    #   - 9888:4444
+    #   volumes:
+    #     - $HOME/.vscode-server/extensions:/root/.vscode-server/extensions:rw
+  entperise_service:
+    image: enterprise_service:latest
+    container_name: enterprise_service
+    restart: always
+    ports: 
+      - 9030:9030
+    volumes:
+      - ./enterprise-service-data:/root/.vscode-server/extensions:rw
+    environment: 
+      DYNACONF_MARIADB_HOST: 172.21.100.174
+      DYNACONF_MARIADB_PORT: 3306
+      DYNACONF_MARIADB_DB_NAME: xface_system
+      DYNACONF_MARIADB_USERNAME: 'root'
+      DYNACONF_MARIADB_PASSWORD: 'root'
+      DYNACONF_SECRET_KEY: 09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7
+
+    labels:
+      # Declare traefik routers
+      - "traefik.enable=true"
+      - "traefik.http.routers.enterprise.rule=PathPrefix(`/api/xface/v1/enterprises`, `/api/xface/v1/sites`, `/api/xface/v1/cameras`, `/api/xface/v1/staffs`)"
+      - "traefik.http.routers.enterprise.entrypoints=web"
+      - "traefik.http.routers.enterprise.service=enterprise-service"
+      - "traefik.http.routers.enterprise.middlewares=authorization"
+      
+      # Declare traefik services
+      - "traefik.http.services.enterprise-service.loadbalancer.server.port=9030"
+      - "traefik.http.services.enterprise-service.loadbalancer.healthcheck.path=/"
+      - "traefik.http.services.enterprise-service.loadbalancer.healthcheck.interval=5s"
+      - "traefik.http.services.enterprise-service.loadbalancer.healthcheck.timeout=30s"
+      # - "traefik.http.services.enterprise-service.loadbalancer.healthcheck.port=9031"
+
+      # Declare traefik middlewares
+      - "traefik.http.middlewares.authorization.forwardauth.address=http://172.21.100.174:9031/api/xface/v1/accounts/auth"
+      - "traefik.http.middlewares.authorization.forwardauth.trustForwardHeader=true"
+    networks:
+      - my-network
+    
+networks:
+  my-network:
+    external:
+      name: gateway

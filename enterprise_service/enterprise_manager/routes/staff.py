@@ -14,20 +14,22 @@ from core.database import get_session, engine, db, get_cursor
 from core.tag_qualifier_tree import Tree, verify_query_params, print_subtree, gender_query
 staff_router = APIRouter(tags=["Staff"])
 
-def site_labeling_tree(tree):
+# Labeling to tree nodes for assign condition query
+def staff_labeling_tree(tree):
     if tree.key[0] == -1:
         tree.name = 'root'
     elif tree.key[0] == 0:
         tree.name = 'staff.id = '
     for child in tree.children:
-        site_labeling_tree(child)
-        
-def site_tree_to_query(tree_list):
+        staff_labeling_tree(child)
+
+# Staff trees to condition query      
+def staff_tree_to_query(tree_list):
     root = Tree((-1,-1,-1,-1))
     root.name = 'root'
     for tree in tree_list:
         root.add_child(tree)
-    site_labeling_tree(root)
+    staff_labeling_tree(root)
     # print_subtree(root)
     return gender_query(root)           
 
@@ -46,12 +48,12 @@ async def add_a_new_staff(staff: Staff,
     staff = db.add(session, staff)
     return {
         "Response": "New Staff Successfully Registered!",
-        "Staff_Id": staff.id
+        "Id": staff.id
     }
 
 """ Get staffs. """
 @staff_router.get("/")
-async def get_sites(id: int = Query(default=None), 
+async def get_staffs(id: int = Query(default=None), 
                     staff_code: str = Query(default=None),
                     email_code: str = Query(default=None),
                     search: str = Query(default=None, regex="(id|staff_code|email_code|unit|title|fullname)-"),
@@ -65,16 +67,20 @@ async def get_sites(id: int = Query(default=None),
     matched_trees = verify_query_params([id], authorization.key)
     if len(matched_trees) == 0:
         return []
-    filter_id_param = site_tree_to_query(matched_trees)
+    filter_id_param = staff_tree_to_query(matched_trees)
 
     limit_param, search_param, sort_param, staff_code_param, email_code_param = "", "", "", "", ""
+    
+    # Add limit query
     if limit != None and limit != "":
         limit_param += f"limit {limit}"
+    # Add search query
     if search != None:
         search = search.split('-')
         if search[1] != '':
             search_param += f"staff.{search[0]} like '%{search[1]}%'"
         print('search param = ', search_param)
+    # Add order by query
     if sorted != None:
         if sorted[0] == "+":
             sort_param += f"order by staff.{sorted[1:]}"
@@ -85,6 +91,7 @@ async def get_sites(id: int = Query(default=None),
     if email_code != None:
         email_code_param += f"staff.email_code = '{email_code}'"
     
+    # Complete condition statement
     condition_statement = ""
     conditions_list = [filter_id_param, staff_code_param, email_code_param, search_param]
     first_add = False
@@ -123,7 +130,7 @@ async def get_sites(id: int = Query(default=None),
 
 """ Update staff info""" 
 @staff_router.put("/")
-async def update_site_info(body: StaffUpdate, 
+async def update_site_info(body: StaffBase, 
                             id: int = Query(), 
                             authorization: Authorization = Security(scopes=['staff', 'u']),
                             session = Depends(get_session)):

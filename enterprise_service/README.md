@@ -120,75 +120,80 @@ docker-compose up -d
 - ```/api/xface/v1/cameras/discovery/unreliable``` : Discovery a camera if it has not existed in database. GET METHOD requires ip address of camera to discovery as a query parameter:
   - ip : to discovery of a camera ip address.
 
-## **Create User Tag Qualifier Tree From User Tag Qualifier**
+## **For Developper In Backend To Manage Resouces Access**
+### **Step 1: Decode user authorization from token**
+- Decode **_encoded_authorization_** in received token.
+- Output of decode algorithm list of tag_qualifier array corresponding to tag_type of resouce and permissions that resouce requires.
+- Example: With api for accessing camera resource. Backend developer will set tag_type of resource is **_'site.camera'_** (if camera and site has depend relationship one-to-many), and permission is **_'r'_**.
+```
+List of tag_qualifier array of vtx_user above after decoded is:
+[[1,-1], [4,-1]]. 
+```
+- vtx_user can not access camera in site 2, 3 because he just has **_create_** and **_read_** permissions on that.
+- Otherwise, he can access camera in site 1, 4 because he has **_admin_** permission in site 1, and **_read_** permission in all camera of site 4. 
+
+### **Step 2: Create Tag Qualifier Trees From List Of tag_qualifier Array**
 - **Assumed, we have user1 with permission like that:**
 
 | username  | tag_type | tag_qualifier | permissions |
 | :------------- | :------------- | :-------------: | :-------------: |
-| user1  | enterprise.site.camera  | 1.1.1 | crud |
-| user1  | enterprise.site.camera  | 1.1.2 | crud |
-| user1  | enterprise.site.camera  | 1.2.-1 | crud |
-| user1  | enterprise.site.camera  | 1.3.-1 | crud |
-| user1  | enterprise.site.camera  | 2.5.10 | crud |
-| user1  | enterprise.site.camera  | 2.5.11 | crud |
-| user1  | enterprise.site.camera  | 2.5.12 | crud |
-| user1  | enterprise.site.camera  | 3.-1.-1 | crud |
+| user1  | site.camera  | 1.1 | crud |
+| user1  | site.camera  | 1.2 | crud |
+| user1  | site.camera  | 2.-1 | crud |
+| user1  | site  | 3 | admin |
+| user1  | site.camera  | 5.10 | crud |
+| user1  | site.camera  | 5.11 | crud |
+| user1  | site.camera  | 5.12 | crud |
+| user1  | site  | 7 | -r-- |
 
-- From tag qualifier set : [1,1,1], [1,1,2], [1,2,-1], [1,3,-1], [2,5,10], [2,5,11], [2,5,12], [3,-1,-1] we create user tag qualifier tree like that:
+- List of tag_qualifier array of user1 for access camera resouce : [1,1], [1,2], [2,-1], [3,-1], [5,10], [5,11], [5,12] we create user tag qualifier trees like that:
 
-<img src="image/tag_tree_1.jpg">
+<img src="image/tag_qualifier_tree.jpg">
 
-- We need relable tree to have all unique node. We use a tuple include 4 fields **(depth, qualifier id, group id, parent qualifier id)** to distinct all node in tree. After that, we can construct a user tag qualifier tree like that:
+- We need relable trees to have all unique node. We use a tuple include 4 fields **(depth, qualifier id, group id, parent qualifier id)** to distinct all node in tree. After that, we can construct a user tag qualifier trees like that:
 
-<img src="image/tag_tree_2.jpg">
+<img src="image/tag_qualifier_tree_lable.jpg">
 
-## **Verify Query Params With User Tag Qualifier Tree**
-### **Clarify**
-- **Assumed, we have user1 with permission like that:**
+### **Step 3: Verify Query Params With Tag Qualifier Trees**
+**With access control list of user1 above:**
 
-| username  | tag_type | tag_qualifier | permissions |
-| :------------- | :------------- | :-------------: | :-------------: |
-| user1  | enterprise  | 2 | admin |
-| user1  | enterprise.site  | 1.2 | crud |
-| user1  | enterprise.site  | 1.3 | cr-- |
-| user1  | enterprise.site  | 1.4 | -r-- |
-| user1  | enterprise.site  | 1.5 | -ru- |
+- **Case 1:** If query params **[site_id, camera_id] = [None, None] (or [-1, -1])**. We will prune user tag qualifier tree by query params to get matched tree. In this case matched tree include all tag qualifier tree:
 
-- When user1 want to get site resources. We construct user tag qualifier tree like that:
+<img src="image/matched_tree_case1.jpg">
 
-<img src="image/tree_depth_2.jpg">
+- **Case 2:** If query params **[site_id, camera_id] = [1, None] (or [1, -1])**. Matched tree is:
 
-- **Case 1:** If query params **[enterprise_id, site_id] = [None, None] (or [-1, -1])**. We will prune user tag qualifier tree by query params to get matched tree. In this case matched tree is:
+<img src="image/matched_tree_case2.jpg">
 
+- **Case 3:** If query params **[site_id, camera_id] = [1, 1]**. Matched tree is:
 
+<img src="image/matched_tree_case3.jpg">
 
-<img src="image/tree_depth_2_0.jpg">
+- **Case 4:** If query params **[site_id, camera_id] = [1, 2]**. Matched tree is:
 
-- **Case 2:** If query params **[enterprise_id, site_id] = [1, None] (or [1, -1])**. Matched tree is:
+<img src="image/matched_tree_case4.jpg">
 
-<img src="image/tree_depth_2_1.jpg">
+- **Case 5:** If query params **[site_id, camera_id] = [2, None] (or [2, -1])**. Matched tree is:
 
-- **Case 3:** If query params **[enterprise_id, site_id] = [2, None] (or [2, -1])**. Matched tree is:
+<img src="image/matched_tree_case5.jpg">
 
-<img src="image/tree_depth_2_2.jpg">
+- **Case 6:** If query params **[site_id, camera_id] = [2, 3]**. Matched tree is:
 
-- **Case 4:** If query params **[enterprise_id, site_id] = [2, 10]**. Matched tree is:
+<img src="image/matched_tree_case6.jpg">
 
-<img src="image/tree_depth_1_1.jpg">
+- **Case 7:** If query params **[site_id, camera_id] = [5, 13]**. Matched tree is not found:
 
-- **Case 5:** If query params **[enterprise_id, site_id] = [1, 3]**. Matched tree is:
+- **And another cases is similar above.**
 
-<img src="image/tree_depth_2_3.jpg">
+### **Step 4: Convert Matched Trees To Condition Statement Query**
+- **After Found Matched Tree. We convert matched trees to satisfied condition statement query. For each above case, we have condition statement is**
 
-- **Case 6:** If query params **[enterprise_id, site_id] = [1, 7]**. Matched tree is not found:
-
-- **After Found Matched Tree. We convert matched to satisfied condition statement query. For each above case, we have condition statement is**
-
-  - **Case 1:** (site.enterprise_id = 1 and (site.id = 2 or site.id = 3 or site.id = 4 or site.id = 5)) or (site.enterprise_id = 2)
-  - **Case 2:** (site.enterprise_id = 1 and (site.id = 2 or site.id = 3 or site.id = 4 or site.id = 5))
-  - **Case 3:** (site.enterprise_id = 2)
-  - **Case 4:** (site.enterprise_id = 2 and site.id = 10)
-  - **Case 5:** (site.enterprise_id = 1 and site.id = 3)
+  - **Case 1:** (camera.site_id = 1 and (camera.id = 1 or camera.id = 2)) or (camera.site_id = 2) or (camera.site_id = 3) or (camera.site_id = 5 and (camera.id = 10 or camera.id = 11 or camera.id = 12))
+  - **Case 2:** (camera.site_id = 1 and (camera.id = 1 or camera.id = 2))
+  - **Case 3:** (camera.site_id = 1 and (camera.id = 1))
+  - **Case 4:** (camera.site_id = 1 and (camera.id = 2))
+  - **Case 5:** (camera.site_id = 2)
+  - **Case 6:** (camera.site_id = 2 and (camera.id = 3))
 
 - **We find condition statement query by using recursive function from root of matched tree to smallest children in the matched tree**
 - **These functions look like that:**
@@ -244,6 +249,7 @@ def site_tree_to_query(tree_list):
 
 ### **Summary**
 **To verify query params with user tag qualifier authorization tree, we have 3 steps:**
-- **Step 1:** If user has permission with the resource. Create **user tag qualifier authorization tree**. Such as picture 1.
-- **Step 2:** Pruning **user tag qualifier authorization tree** by **query params** to get **matched tree**.
-- **Step 3:** If **matched tree** is not empty. Convert **matched tree** to **condition statement query** to filter resource.
+- **Step 1:** Decode user authorization from token to get list of tag qualifier array.
+- **Step 2:** Create **tag qualifier trees** from list of tag qualifier array.
+- **Step 3:** Pruning **tag qualifier trees** by **query params** to get **matched trees**.
+- **Step 4:** If **matched trees** is not empty. Convert **matched trees** to **condition statement query** to filter resource.

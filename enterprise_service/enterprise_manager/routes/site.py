@@ -14,6 +14,7 @@ from core.database import get_session, engine, db, get_cursor
 from core.tag_qualifier_tree import Tree, verify_query_params, print_subtree, gender_query
 site_router = APIRouter(tags=["Site"])
 
+# Labeling to tree nodes for assign condition query
 def site_labeling_tree(tree):
     if tree.key[0] == -1:
         tree.name = 'root'
@@ -21,7 +22,8 @@ def site_labeling_tree(tree):
         tree.name = 'site.id = '
     for child in tree.children:
         site_labeling_tree(child)
-        
+
+# Site trees to condition query        
 def site_tree_to_query(tree_list):
     root = Tree((-1,-1,-1,-1))
     root.name = 'root'
@@ -46,7 +48,7 @@ async def add_a_new_site(site: Site,
     site = db.add(session, site)
     return {
         "Response": "New Site Successfully Registered!",
-        "Site_Id": site.id
+        "Id": site.id
     }
 
 """ Get site info by site name or side id. Apply for root user. """
@@ -65,16 +67,18 @@ async def get_sites(id: int = Query(default=None),
     if len(matched_trees) == 0:
         return []
     filter_id_param = site_tree_to_query(matched_trees)
-    # if filter_id_param != "":
-    #     filter_id_param  = "and " + filter_id_param
         
     limit_param, search_param, sort_param, name_param = "", "", "", ""
+    
+    # Add limit query
     if limit != None and limit != "":
         limit_param += f"limit {limit}"
+    # Add search query
     if search != None:
         search = search.split('-')
         if search[1] != '':
             search_param += f"site.{search[0]} like '%{search[1]}%'"
+    # Add order by query
     if sorted != None:
         if sorted[0] == "+":
             sort_param += f"order by site.{sorted[1:]}"
@@ -83,6 +87,7 @@ async def get_sites(id: int = Query(default=None),
     if name != None:
         name_param += f"site.name = '{name + ''}'"
     
+    # Complete condition statement
     condition_statement = ""
     conditions_list = [filter_id_param, name_param, search_param]
     first_add = False
@@ -112,11 +117,9 @@ async def get_sites(id: int = Query(default=None),
     # print(list_camera)
     return JSONResponse(content=jsonable_encoder(list_site))
 
-
-
 """ Update site info. Apply for root user """ 
 @site_router.put("/")
-async def update_site_info(body: SiteUpdate, 
+async def update_site_info(body: SiteBase, 
                             id: int = Query(), 
                             authorization: Authorization = Security(scopes=['site', 'u']),
                             session = Depends(get_session)):

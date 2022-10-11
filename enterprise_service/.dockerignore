@@ -3,3 +3,4 @@ enterprise_manager/server.py
 enterprise_manager/redis*
 enterprise_manager/test*
 enterprise_manager/request.sh
+enterprise_manager/db_schema.py

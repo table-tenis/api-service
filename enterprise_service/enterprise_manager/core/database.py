@@ -10,36 +10,28 @@ import pymysql.cursors
 import sys, os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from config.config import settings
-config = {
+
+mariadb_config = {
     'host': settings.MARIADB_HOST,
     'port': settings.MARIADB_PORT,
-    'user': 'root',
-    'password': 'root',
-    'database': settings.MARIADB_NAME
+    'user': settings.MARIADB_USERNAME,
+    'password': settings.MARIADB_PASSWORD,
+    'database': settings.MARIADB_DB_NAME
 }
         
-DATABASE_URL = f"mysql+pymysql://root:root@{settings.MARIADB_HOST}:{settings.MARIADB_PORT}/{settings.MARIADB_NAME}"
-print("DATABASE_URL = ", DATABASE_URL)
-engine = create_engine(DATABASE_URL + '?charset=utf8', echo=True)
+MARIADB_URL = f"mysql+pymysql://root:root@{settings.MARIADB_HOST}:{settings.MARIADB_PORT}/{settings.MARIADB_DB_NAME}"
+print("DATABASE_URL = ", MARIADB_URL)
+engine = create_engine(MARIADB_URL + '?charset=utf8', echo=True)
 BASE = declarative_base(engine)
-# print(engine.connect())
-# # Create session
-# Session = sessionmaker(bind=engine)
-# session = Session()
-
-def conn():
-    SQLModel.metadata.create_all(engine, )
 
 def get_session():
     with Session(engine) as session:
         yield session
         session.close()
-    # with sessionmaker(engine, expire_on_commit=False, class_=AsyncSession) as session:
-    #     yield session
 
 def get_cursor():
     try:
-        conn = pymysql.connect(**config)
+        conn = pymysql.connect(**mariadb_config)
     except Exception as e:
         raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

@@ -9,7 +9,6 @@ class SiteUpdate(BaseModel):
 
 class CameraUpdate(BaseModel):
     site_id: Optional[int] 
-    session_service_id: Optional[int]
     ip: Optional[str]
     name: Optional[str]
     description: Optional[str]
