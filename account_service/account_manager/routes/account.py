@@ -85,7 +85,8 @@ async def account_logout(authorization: Authorization = Security()) -> dict:
 async def get_accounts(username: str = Query(default=None),
                         authorization: Authorization = Security(),
                         sorted: str = Query(default=None, regex="^[+-](username)"),
-                        query_params: CommonQueryParams = Depends(),
+                        search: str = Query(default=None, regex="(username|email|cellphone|note)-"),
+                        limit: int = Query(default=None, gt=0),
                         session = Depends(get_session)):
     statement = select(Account)
     if username != None:
@@ -99,9 +100,17 @@ async def get_accounts(username: str = Query(default=None),
         # Just retrieve account for only this sign-in account
         statement = statement.where(Account.username == authorization.username)
     
-    if query_params.search != None:
-        print('query_params.search = ', query_params.search)
-        statement = statement.filter(Account.username.contains(query_params.search))
+    if search != None:
+        search = search.split('-')
+        if search[1] != '':
+            if search[0] == 'username':
+                statement = statement.filter(Account.username.contains(search[1]))
+            elif search[0] == 'email':
+                statement = statement.filter(Account.email.contains(search[1]))
+            elif search[0] == 'cellphone':
+                statement = statement.filter(Account.cellphone.contains(search[1]))
+            elif search[0] == 'note':
+                statement = statement.filter(Account.note.contains(search[1]))
     if sorted != None:
         if sorted[0] == "-":
             if sorted[1:] == 'username':
@@ -109,8 +118,8 @@ async def get_accounts(username: str = Query(default=None),
         elif sorted[0] == "+":
             if sorted[1:] == 'username':
                 statement = statement.order_by(Account.username.asc())
-    if query_params.limit != None and query_params.limit > 0:
-        statement = statement.limit(query_params.limit)
+    if limit != None and limit > 0:
+        statement = statement.limit(limit)
         
     accounts = db.get_all(session, statement)
     if not accounts:

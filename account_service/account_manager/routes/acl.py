@@ -21,7 +21,7 @@ async def add_an_acl(new_acl: ACL,
     if len(new_acl.tag_type.split('.')) != len(new_acl.tag_qualifier.split('.')):
         raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="Can't Insert This ACL, Tag_Type And Tag_Qualifier Not Match"
+                        detail="Can't Insert This ACL, Len Tag_Type And Tag_Qualifier Not Match"
                     )
     statement = select(ACL).where(ACL.username == new_acl.username)
     statement = statement.where(ACL.tag_type == new_acl.tag_type)
@@ -62,11 +62,12 @@ async def add_an_acl(new_acl: ACL,
 """ Get all acl info. Apply for root user. """
 @acl_router.get("/")
 async def get_acls(id: int = Query(default=None),
-                            username: str = Query(default=None),
-                            sorted: str = Query(default=None, regex="^[+-](id|username|tag_type)"),
-                            common_params: CommonQueryParams = Depends(),
-                            authorization: Authorization = Security(),
-                            session = Depends(get_session)):
+                    username: str = Query(default=None),
+                    sorted: str = Query(default=None, regex="^[+-](id|username|tag_type)"),
+                    search: str = Query(default=None, regex="(username)-"),
+                    limit: int = Query(default=None, gt=0),
+                    authorization: Authorization = Security(),
+                    session = Depends(get_session)):
     statement = select(ACL)
     if username != None:
         if not authorization.is_root and username != authorization.username:
@@ -80,8 +81,10 @@ async def get_acls(id: int = Query(default=None),
         statement = statement.where(ACL.username == authorization.username)
     if id != None:
         statement = statement.where(ACL.id == id)
-    if common_params.search != None:
-        statement = statement.filter(ACL.username.contains(common_params.search))
+    if search != None:
+        search = search.split('-')
+        if search[1] != '':
+            statement = statement.filter(ACL.username.contains(search[1]))
     if sorted != None:
         if sorted[0] == "-":
             if sorted[1:] == 'id':
@@ -97,8 +100,8 @@ async def get_acls(id: int = Query(default=None),
                 statement = statement.order_by(ACL.username.asc())
             elif sorted[1:] == 'tag_type':
                 statement = statement.order_by(ACL.tag_type.asc())
-    if common_params.limit != None and common_params.limit > 0:
-        statement = statement.limit(common_params.limit)
+    if limit != None and limit > 0:
+        statement = statement.limit(limit)
     
     acls = db.get_all(session, statement)
     if not acls:

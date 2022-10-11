@@ -1,12 +1,52 @@
     version: '3.5'
 
     services:
-      server:
-        image: dat.local:5001/account_manager:latest
-        build:
-          context: .
-          dockerfile: Dockerfile
+      # server:
+      #   image: dat.local:5001/account_manager:latest
+      #   build:
+      #     context: .
+      #     dockerfile: Dockerfile
+      #   ports: 
+      #   - 9888:4444
+      #   volumes:
+      #     - $HOME/.vscode-server/extensions:/root/.vscode-server/extensions:rw
+
+      account_service:
+        image: account_service:latest
+        container_name: account_service_1
+        restart: always
         ports: 
-        - 9888:4444
+          - 9031:9031
         volumes:
-          - $HOME/.vscode-server/extensions:/root/.vscode-server/extensions:rw
+          - ./account-service-data:/root/.vscode-server/extensions:rw
+        environment: 
+          DYNACONF_MARIADB_HOST: 172.21.100.174
+          DYNACONF_MARIADB_PORT: 3306
+          DYNACONF_MARIADB_DB_NAME: xface_system
+          DYNACONF_MARIADB_USERNAME: 'root'
+          DYNACONF_MARIADB_PASSWORD: 'root'
+          DYNACONF_REDIS_HOST: 172.21.100.174
+          DYNACONF_REDIS_PORT: 6379
+          DYNACONF_TOKEN_EXPIRES: 14400
+          DYNACONF_REDIS_PASSWORD: root
+          DYNACONF_SECRET_KEY: 09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7
+        labels:
+          # Declare traefik routers
+          - "traefik.enable=true"
+          - "traefik.http.routers.account.rule=PathPrefix(`/api/xface/v1/accounts`, `/api/xface/v1/acls`)"
+          - "traefik.http.routers.account.entrypoints=web"
+          - "traefik.http.routers.account.service=account-service"
+
+          # Declare traefik services
+          - "traefik.http.services.account-service.loadbalancer.server.port=9031"
+          - "traefik.http.services.account-service.loadbalancer.healthcheck.path=/"
+          - "traefik.http.services.account-service.loadbalancer.healthcheck.interval=5s"
+          - "traefik.http.services.account-service.loadbalancer.healthcheck.timeout=30s"
+          # - "traefik.http.services.account-service.loadbalancer.healthcheck.port=9031"
+        networks:
+          - my-network
+    
+    networks:
+      my-network:
+        external:
+          name: gateway

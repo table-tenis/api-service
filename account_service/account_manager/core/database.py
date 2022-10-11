@@ -13,12 +13,12 @@ from config.config import settings
 config = {
     'host': settings.MARIADB_HOST,
     'port': settings.MARIADB_PORT,
-    'user': 'root',
-    'password': 'root',
-    'database': settings.MARIADB_NAME
+    'user': settings.MARIADB_USERNAME,
+    'password': settings.MARIADB_PASSWORD,
+    'database': settings.MARIADB_DB_NAME
 }
 print("config = ", config)        
-DATABASE_URL = f"mysql+pymysql://root:root@{settings.MARIADB_HOST}:{settings.MARIADB_PORT}/{settings.MARIADB_NAME}"
+DATABASE_URL = f"mysql+pymysql://{settings.MARIADB_USERNAME}:{settings.MARIADB_PASSWORD}@{settings.MARIADB_HOST}:{settings.MARIADB_PORT}/{settings.MARIADB_DB_NAME}"
 print("DATABASE_URL = ", DATABASE_URL)
 print("redis_host, redis_port = ", settings.REDIS_HOST, settings.REDIS_PORT)
 #mariadb+mariadbconnector://admin:admin@172.21.100.174:3306/xface_test/?charset=utf8

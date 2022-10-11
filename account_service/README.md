@@ -42,26 +42,21 @@ python3 -m pip install -r requirements.txt
 - Delete an acl.
 ### **Access Control List Table**
 - username: username of account.
-- tag_type: type of privilege.
+- tag_type: type of privilege (site, staff, camera, site.camera,...).
 - tag_qualifier: identifies a specific resource (id,...)
 - permissions: specifies the permissions (create(c), read(r), update(u), delete(d), admin).
 
 | username  | tag_type | tag_qualifier | permissions |
 | :------------- | :------------- | :-------------: | :-------------: |
-| vtx.admin  | enterprise  | 1 | admin |
-| vtx.site1  | enterprise.site  | 1.1 | admin |
-| vtx.site1.c  | enterprise.site  | 1.1 | c--- |
-| vtx.site1.r  | enterprise.site  | 1.1 | -r-- |
-| vtx.site1.r  | enterprise.site  | 1.1 | --u- |
-| vtx.site1.d  | enterprise.site  | 1.1 | ---d |
-| vtx.site1.cr  | enterprise.site  | 1.1 | cr-- |
-| vtx.site1.crud  | enterprise.site  | 1.1 | crud |
-| vtx.site2  | enterprise.site  | 1.2 | admin |
-| vht.admin  | enterprise  | 2 | admin |
-| vht.site.all_priv  | enterprise.site  | 2.-1 | admin |
-| vht.site.all_crud  | enterprise.site  | 2.-1 | crud |
-| enterprise.all_priv  | enterprise  | -1 | admin |
-| enterprise.all_cr  | enterprise  | -1 | cr-- |
+| site1.admin  | site  | 1 | admin |
+| site1.create  | site  | 1 | c--- |
+| site1.read  | site  | 1 | -r-- |
+| site2.update  | site  | 2 | --u- |
+| site2.delete  | site  | 2 | ---d |
+| site1.cr  | site  | 1 | cr-- |
+| site1.crud  | site  | 1 | crud |
+| all_site.admin  | site  | -1 | admin |
+| all_site.cr  | site  | -1 | cr-- |
 
 - id qualifier = -1 to alter '*' charater for converting easily string to int.
 
@@ -70,19 +65,18 @@ python3 -m pip install -r requirements.txt
 
 | username  | tag_type | tag_qualifier | permissions |
 | :------------- | :------------- | :-------------: | :-------------: |
-| vtx_user  | enterprise  | 2 | admin |
-| vtx_user  | enterprise.site  | 1.1 | admin |
-| vtx_user  | enterprise.site  | 1.2 | c--- |
-| vtx_user  | enterprise.site  | 1.3 | -r-- |
-| vtx_user  | enterprise.site  | 1.4 | --u- |
-| vtx_user | enterprise.site.camera  | 1.1.-1 | cru- |
+| vtx_user  | site  | 1 | admin |
+| vtx_user  | site  | 2 | c--- |
+| vtx_user  | site  | 3 | -r-- |
+| vtx_user  | site  | 4 | --u- |
+| vtx_user | site.camera  | 4.-1 | -ru- |
 
-- **_authorization encode_** = ```'enterprise:2:admin|enterprise.site:1.1,1.2,1.3,1.4:admin,c---,-r--,--u-|enterprise.site.camera:1.1.-1:cru-'```
-  - **_authorization encode_** above comprise 3 **compound acl record**, separated by '|' character.
-  - tag_type, tag_qualifiers, permissions is separated by ':' character in each **compound acl record**.
-  - Each **compound acl record** have unique tag_type such that *enterprise* in first **compound acl record**, *enterprise.site* in second **compound acl record**, *enterprise.site.camera* in third **compound acl record**.
-  - tag_qualifiers in each **compound acl record** is separated by ',' character. Such as, with tag_type is *enterprise.site*, vtx_user has 4 tag_qualifier is '1.1', '1.2', '1.3', '1.4'. So in *enterprise.site* **compound acl record**, tag_qualifiers = ```'1.1,1.2,1.3,1.4'```
-  - Similar to tag_qualifiers, permissions in *enterprise.site* **compound acl record** = ```'admin,c---,-r--,--u-'```.
+- **_authorization encode_** = ```'site:1,2,3,4:admin,c---,-r--,--u-|site.camera:4.-1:-ru-'```
+  - **_authorization encode_** above comprise 2 **compound acl record**, separated by '|' character.
+  - tag_type, tag_qualifiers, permissions is separated by ':' in each **compound acl record**.
+  - Each **compound acl record** have unique tag_type such that *site* in first **compound acl record**, *site.camera* in second **compound acl record**.
+  - tag_qualifiers in each **compound acl record** is separated by ','. Such as, with tag_type is *site*, vtx_user has 4 tag_qualifier is '1', '2', '3', '4'. So in *site* **compound acl record**, tag_qualifiers = ```'1,2,3,4'```
+  - Similar to tag_qualifiers, permissions in *site* **compound acl record** = ```'admin,c---,-r--,--u-'```.
 - **_authorization encode_** will be encoded with token when user sign-in to system. After that, this data will be used to verify resources authorization when receive requests.
 
 ## **How To Run**

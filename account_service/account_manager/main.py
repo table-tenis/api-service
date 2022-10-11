@@ -26,6 +26,10 @@ async def add_process_time_header(request: Request, call_next):
     response.headers["X-Process-Time"] = str(f'{process_time} sec')#str(f'{process_time:0.10f} sec')
     return response
 
+@app.get("/")
+async def healthcheck():
+    return {"message": "Ok"}
+
 app.include_router(account_router, prefix="/api/xface/v1/accounts")
 app.include_router(acl_router, prefix="/api/xface/v1/acls")
 if __name__ == "__main__":
