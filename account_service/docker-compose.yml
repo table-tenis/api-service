@@ -45,6 +45,13 @@
           # - "traefik.http.services.account-service.loadbalancer.healthcheck.port=9031"
         networks:
           - my-network
+
+        healthcheck:
+          test: ["CMD", "curl", "http://localhost:9031"]
+          interval: 10s
+          timeout: 2s
+          retries: 3
+          start_period: 30s
     
     networks:
       my-network:

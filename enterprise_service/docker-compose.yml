@@ -46,6 +46,13 @@ services:
       - "traefik.http.middlewares.authorization.forwardauth.trustForwardHeader=true"
     networks:
       - my-network
+
+    healthcheck:
+      test: ["CMD", "curl", "http://localhost:9030"]
+      interval: 10s
+      timeout: 2s
+      retries: 3
+      start_period: 30s
     
 networks:
   my-network:
