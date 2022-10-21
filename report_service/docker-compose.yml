@@ -1,12 +1,62 @@
-    version: '3.5'
+version: '3.5'
 
-    services:
-      server:
-        image: dat.local:5001/enterprise_manager:latest
-        build:
-          context: .
-          dockerfile: Dockerfile
-        ports: 
-        - 9889:4444
-        volumes:
-          - $HOME/.vscode-server/extensions:/root/.vscode-server/extensions:rw
+services:
+    # server:
+    #   image: dat.local:5001/account_manager:latest
+    #   build:
+    #     context: .
+    #     dockerfile: Dockerfile
+    #   ports: 
+    #   - 9888:4444
+    #   volumes:
+    #     - $HOME/.vscode-server/extensions:/root/.vscode-server/extensions:rw
+  entperise_service:
+    image: report_service:1.0
+    container_name: report_service
+    restart: always
+    ports: 
+      - 9032:9032
+    volumes:
+      - ./report-service-data:/root/.vscode-server/extensions:rw
+    environment: 
+      DYNACONF_MARIADB_HOST: 172.21.100.167
+      DYNACONF_MARIADB_PORT: 3306
+      DYNACONF_MARIADB_DB_NAME: xface_system
+      DYNACONF_MARIADB_USERNAME: 'root'
+      DYNACONF_MARIADB_PASSWORD: 'root'
+      DYNACONF_SECRET_KEY: 09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7
+      DYNACONF_MONGODB_HOST: 172.21.100.167
+      DYNACONF_MONGODB_PORT: 27017
+
+    labels:
+      # Declare traefik routers
+      - "traefik.enable=true"
+      - "traefik.http.routers.report.rule=PathPrefix(`/api/xface/v1/reports`)"
+      - "traefik.http.routers.report.entrypoints=web"
+      - "traefik.http.routers.report.service=report-service"
+      - "traefik.http.routers.report.middlewares=authorization"
+      
+      # Declare traefik services
+      - "traefik.http.services.report-service.loadbalancer.server.port=9032"
+      - "traefik.http.services.report-service.loadbalancer.healthcheck.path=/"
+      - "traefik.http.services.report-service.loadbalancer.healthcheck.interval=5s"
+      - "traefik.http.services.report-service.loadbalancer.healthcheck.timeout=30s"
+      # - "traefik.http.services.enterprise-service.loadbalancer.healthcheck.port=9031"
+
+      # Declare traefik middlewares
+      - "traefik.http.middlewares.authorization.forwardauth.address=http://172.21.100.174:9031/api/xface/v1/accounts/auth"
+      - "traefik.http.middlewares.authorization.forwardauth.trustForwardHeader=true"
+    networks:
+      - my-network
+
+    healthcheck:
+      test: ["CMD", "curl", "http://localhost:9032"]
+      interval: 10s
+      timeout: 2s
+      retries: 3
+      start_period: 30s
+    
+networks:
+  my-network:
+    external:
+      name: gateway

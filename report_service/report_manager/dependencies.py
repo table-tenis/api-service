@@ -1,18 +1,13 @@
 from fastapi import APIRouter, HTTPException, status, Depends, Query, Request, Security, Path
-from fastapi.security import OAuth2PasswordRequestForm
 from rsa import verify
 from sqlmodel import select
 from sqlalchemy.orm import load_only
 from core.database import get_session
 from auth.authenticate import authenticate
 from fastapi.security import (
-    OAuth2PasswordBearer,
-    OAuth2PasswordRequestForm,
     SecurityScopes,
 )
-import struct, json
 from json import loads
-from difflib import SequenceMatcher
 class CommonQueryParams:
     def __init__(self, limit: int = Query(default=None, description="set limit number account's username to retrieve", gt=0),
                                         search: str = Query(default=None)):
@@ -38,12 +33,19 @@ class Authorization:
                 detail = "Permission Denied"
             )
         if self.is_root:
-            self.key.append([-1 for i in range(len(self.scopes[0].split('.')))])
+            if len(self.scopes) > 1:
+                self.key.append([-1 for i in range(len(self.scopes[0].split('.')))])
+            else:
+                self.key.append(-1)
         if ('root' not in self.scopes) and (not self.is_root) and (len(self.scopes) > 0):
             # find all key this account can access
             acls = self.authorization['acl'].split('|')
-            tag_type = self.scopes[0]
-            permission_required = self.scopes[1]
+            try:
+                tag_type = self.scopes[0]
+                permission_required = self.scopes[1]
+            except Exception as e:
+                raise Exception('scopes error, out of index')
+            
             acl = ''
             for i in range(len(acls)):
                 if tag_type == acls[i].split(':')[0]:
@@ -52,7 +54,7 @@ class Authorization:
             # This just find id access with match entire tag_type
             if acl != '':
                 tag_qualifier_valid = []
-                acl_accquired = acl.split(':') # ['enterprise.site', '1.1,1.2,1.3', 'crud,admin,cru-']
+                acl_accquired = acl.split(':') # ['site.camera', '1.1,1.2,1.3', 'crud,admin,cru-']
                 tag_qualifier_accquired = acl_accquired[1].split(',') # ['1.1', '1.2', '1.3']
                 permissions_accquired = acl_accquired[2].split(',') # ['crud', 'admin', 'cru-']
                 for i in range(len(permissions_accquired)):
@@ -62,12 +64,11 @@ class Authorization:
                 for tag_qualifier in tag_qualifier_valid:
                     # convert list of str to list of int
                     try:
-                        self.key.append([int(i) for i in tag_qualifier])
+                        self.key.append([int(i) for i in tag_qualifier]) # [[1, 1], [1, 2], [1, 3]]
                     except ValueError as e:
                         print(e)
 
-            # try to match sub tag_type with 'admin' permission
-            # else:
+            # try to match sub tag_type with 'admin' permission. Example ['site', '1', 'admin'] => ['site.camera', '1.-1', 'admin']
             tag_type_separate = tag_type.split('.')
             sub_acl = []
             sub_acl_len_reserve = {}

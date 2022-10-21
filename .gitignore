@@ -12,3 +12,7 @@ enterprise_service/enterprise_manager/test*
 enterprise_service/enterprise_manager/redis_list*
 enterprise_service/enterprise_manager/server*
 enterprise_service/enterprise_manager/client*
+report_service/report_manager/*/__pycache*
+report_service/report_manager/__pycache*
+report_service/report_manager/__init__.py
+report_service/report_manager/*/__init__.py

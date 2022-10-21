@@ -5,49 +5,81 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from fastapi import APIRouter, HTTPException, status
-import redis
 # import mariadb
 import pymysql.cursors
+from pymongo import MongoClient
 import sys, os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from config.config import settings
-config = {
-    'host': settings.database.host,
-    'port': settings.database.port,
-    'user': settings.database.user,
-    'password': settings.database.password,
-    'database': settings.database.database_name
+from core import helper
+# Mongo database and collections
+class MongoDatabase:
+    def __init__(self) -> None:
+        print("MONGODB_HOST = ", settings.MONGODB_HOST, ", MONGODB_PORT = ", settings.MONGODB_PORT)
+        self.client = MongoClient(settings.MONGODB_HOST, settings.MONGODB_PORT)
+        self.xface_db = self.client['xface']
+        self.detection_coll = self.xface_db['detection']
+        
+    def checkin_checkout_sumary(self, start_time = None, end_time = None):
+        start_time = helper.strtime_to_utc(start_time)
+        end_time = helper.strtime_to_utc(end_time)
+
+        print(start_time, type(start_time))
+        pipeline = [{"$match": {"detection_time": {"$gt": start_time, "$lt": end_time}, "staff.notify_enable": 1, "staff.state": 1}},
+                    {"$group": {"_id": "$staff.staff_id", "staff_code":{"$first":"$staff.staff_code"}, 
+                                "fullname":{"$first":"$staff.fullname"}, "unit": {"$first": "$staff.unit"},
+                                "title": {"$first": "$staff.title"},
+                                "checkin": {"$min": "$detection_time"}, "checkout": {"$max": "$detection_time"}}},
+                    {"$project": {"_id": 0}}]
+
+        result = self.detection_coll.aggregate(pipeline)
+        list_data = []
+        for res in result:
+            list_data.append({'staff_code':res['staff_code'], 'email_code': res.get('email_code'),
+                              'fullname':res['fullname'], 'unit':res['unit'], 'title': res['title'],
+                            'checkin': helper.datetime_to_str(helper.datetime_from_utc_to_local(res['checkin'])), 
+                            'checkout': helper.datetime_to_str(helper.datetime_from_utc_to_local(res['checkout']))})
+        return list_data
+    
+    def sumary_detect_per_person(self, staff_id = None, staff_code = None, staff_name = None, start_time = None, end_time = None):
+        start_time = helper.strtime_to_utc(start_time)
+        end_time = helper.strtime_to_utc(end_time)
+
+        statement = {}
+        statement['timestamp'] = {"$gt": start_time, "$lt": end_time}
+        if staff_id != None:
+            statement['staff.staff_id'] = staff_id
+        if staff_code != None:
+            statement['staff.staff_code'] = staff_code
+        if staff_name != None:
+            statement['staff.fullname'] = {'$regex': staff_name}
+        print("statement = ", statement)
+        result = self.detection_coll.find(statement, {'_id': 0, 'staff.staff_id': 0})                
+        return result
+    
+mongodb = MongoDatabase()
+
+mariadb_config = {
+    'host': settings.MARIADB_HOST,
+    'port': settings.MARIADB_PORT,
+    'user': settings.MARIADB_USERNAME,
+    'password': settings.MARIADB_PASSWORD,
+    'database': settings.MARIADB_DB_NAME
 }
         
-DATABASE_URL = f"mysql+pymysql://{settings.database.user}:{settings.database.password}@{settings.database.host}:{settings.database.port}/{settings.database.database_name}"
-print("DATABASE_URL = ", DATABASE_URL)
-engine = create_engine(DATABASE_URL + '?charset=utf8', echo=True)
+MARIADB_URL = f"mysql+pymysql://root:root@{settings.MARIADB_HOST}:{settings.MARIADB_PORT}/{settings.MARIADB_DB_NAME}"
+print("DATABASE_URL = ", MARIADB_URL)
+engine = create_engine(MARIADB_URL + '?charset=utf8', echo=True)
 BASE = declarative_base(engine)
-# print(engine.connect())
-# # Create session
-# Session = sessionmaker(bind=engine)
-# session = Session()
-
-redis_db = redis.Redis(host='localhost', port=6379, decode_responses=True)
-
-def conn():
-    SQLModel.metadata.create_all(engine, )
 
 def get_session():
     with Session(engine) as session:
         yield session
         session.close()
-    # with sessionmaker(engine, expire_on_commit=False, class_=AsyncSession) as session:
-    #     yield session
-
-# class Cur:
-#     def __init__(self) -> None:
-#         self.conn = mariadb.connect(**config)
-#         self.cur = self.conn.cursor()
 
 def get_cursor():
     try:
-        conn = pymysql.connect(**config)
+        conn = pymysql.connect(**mariadb_config)
     except Exception as e:
         raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

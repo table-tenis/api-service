@@ -1,4 +1,15 @@
-username = "admin"
-host = "172.21.100.174"
-port = 9085
-database = {user='root', password='root', host='172.21.100.174', port=3306, database_name='xface_system'}
+# Service Config
+SERVICE_HOST = "0.0.0.0"
+SERVICE_PORT = 9032
+TOKEN_EXPIRES = 14400 # 4 hours
+SECRET_KEY="09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
+
+# Database Config
+MARIADB_HOST = "172.21.100.167"
+MARIADB_PORT = 3306
+MARIADB_DB_NAME = "xface_system"
+MARIADB_USERNAME = "root"
+MARIADB_PASSWORD = "root"
+
+MONGODB_HOST = "172.21.100.167"
+MONGODB_PORT = 27017
