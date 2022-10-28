@@ -1,6 +1,6 @@
 from time import time
 
-from fastapi import APIRouter, HTTPException, status, Depends, Security, Query
+from fastapi import APIRouter, HTTPException, status, Depends, Security, Query, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, FileResponse
 from typing import List
@@ -8,12 +8,11 @@ from priority import DeadlockError
 from sqlmodel import Session, select, and_, or_, not_
 from sqlalchemy.orm import load_only
 from dependencies import CommonQueryParams, Authorization
-from core.database import get_session, engine, db, get_cursor, mongodb
+from core.database import get_session, engine, db, get_cursor
 from core.tag_qualifier_tree import Tree, verify_query_params, print_subtree, gender_query
 from core.helper import datetime_to_str
 import pandas as pd
-from datetime import datetime
-
+from datetime import datetime, date
 from core import helper
 report_router = APIRouter(tags=["Report"])
 
@@ -36,14 +35,12 @@ report_router = APIRouter(tags=["Report"])
 
 """ Get reports """
 @report_router.get("/bytime")
-def report_bytime(start_time:str = Query(default=None), 
-                  end_time:str = Query(default=None), 
+def report_bytime(request: Request, report_date:str = Query(default=None),
                   limit: int = Query(default=None, gt=0),
                   sort: str = Query(default=None, regex="^[+-](fullname|staff_code)"),
                   cursor = Depends(get_cursor)):
     
-    limit_param = ""
-    sort_param = ""
+    limit_param, sort_param, statement = "", "", ""
     if limit != None:
         limit_param += f"limit {limit}"
     if sort != None:
@@ -52,27 +49,18 @@ def report_bytime(start_time:str = Query(default=None),
         else:
             sort_param += f"order by staff.{sort[1:]} desc"
     
-    if start_time == None:
-        start_time = helper.datetime_to_str(datetime.now())   
-    if end_time == None:
-        end_time = helper.datetime_to_str(datetime.now())
-        
-    three_days_before = datetime.fromtimestamp(time() - 3*24*3600)
-    result = []
-    if start_time > helper.datetime_to_str(three_days_before):
-        # Get Info From Mongodb
-        print("Get mongodb data")
-        result = mongodb.checkin_checkout_sumary(start_time=start_time, end_time=end_time)
-             
-    statement = f"select staff.staff_code, staff.email_code, staff.fullname, staff.unit, staff.title, b.min_time, b.max_time "\
-                    "from staff left outer join (select staff_id, Min(detection_time) as min_time, Max(detection_time) as max_time "\
-                                                "from detection "\
-                                                "where (detection_time >= '{}') and (detection_time <= '{}') "\
-                                                "group by staff_id) as b "\
-                    "on staff.id = b.staff_id "\
-                    "where staff.state != 0 {} {};".format(start_time, end_time, sort_param, limit_param)
+    if(report_date == helper.date_to_str(date.today())):
+        statement = """select r.staff_code, r.fullname, r.unit, r.title, r.checkin, r.checkout, current_date 
+                        from (select @start_time:=curdate() p1) param1, 
+                             (select @end_time:=(current_date + interval '23:50' hour_minute) p2) param2, 
+                             aggregate_report as r;"""
+    else:
+        statement = f"""select s.staff_code, s.fullname, r.checkin, r.checkout, r.report_date 
+                        from staff as s left outer join 
+                        (select staff_id, checkin, checkout, report_date from report where report_date = '{report_date}') as r 
+                        on s.id = r.staff_id 
+                        where s.state != 0;"""
     print("statement = ", statement)
-    # return mongodb.checkin_checkout_sumary(start_time="2022-10-14")
     cursor.execute(statement)
     staffs = cursor.fetchall()
     list_data = []

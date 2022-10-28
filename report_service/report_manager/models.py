@@ -3,52 +3,28 @@ from typing import Optional, List
 from sqlmodel import SQLModel, Field, Column, JSON
 from datetime import date
 from core.helper import str_to_date
-class EnterpriseBase(SQLModel):
-    enterprise_code: str = Field(default=None)
-    name: str = Field(default=None)
-    email: str = Field(default=None)
-    note: str = Field(default=None)
+
+class ReportBase(SQLModel):
+    staff_id: int = Field(default=None)
+    checkin: str = Field(default=None)
+    checkout: str = Field(default=None)
+    report_date: str = Field(default=None)
     
-class Enterprise(EnterpriseBase, table=True):
+class Report(ReportBase, table=True):
     id: int = Field(default=None, primary_key=True)
     class Config:
         schema_extra = {
             "example": {
                 "id": "default = None, auto increase",
-                "enterprise_code": "vtx",
-                "name": "Vien Hang Khong Vu Tru Viettel",
-                "email": "vtx@vtx",
-                "note": "vtx is vtx"
-            }
-        }
-     
-class SiteBase(SQLModel):
-    name: str = Field(default=None)
-    description: str = Field(default=None)
-    note: str = Field(default=None)
-    class Config:
-        schema_extra = {
-            "example": {
-                "name": "site name",
-                "description": "site description",
-                "note": "site note"
-            }
-        }
-   
-class Site(SiteBase, table=True):
-    id: int = Field(default=None, primary_key=True)
-    class Config:
-        schema_extra = {
-            "example": {
-                "name": "site name",
-                "description": "site description",
-                "note": "site note"
+                "staff_id": 1,
+                "checkin": "checkin time",
+                "checkout": "checkout time",
+                "report_date": "report date time"
             }
         }
      
 class CameraBase(SQLModel):
     site_id: int = Field(default=None)
-    session_service_id: int = Field(default=None)
     ip: str = Field(default="")
     name: str = Field(default=None)
     description: str = Field(default=None)
@@ -115,3 +91,22 @@ class Staff(StaffBase, table=True):
                 "note": "xxxxx"
             }
         }
+        
+class DetectionBase(SQLModel):
+    staff_id: int = Field(default=None)
+    cam_id: int = Field(default=None)
+    session_id: str = Field(default=None)
+    frame_id: int = Field(default=None)
+    detection_time: str = Field(default=None)
+    detection_score: float = Field(default=None)
+    blur_score: float = Field(default=None)
+    box_x: float = Field(default=None)
+    box_y: float = Field(default=None)
+    box_width: float = Field(default=None)
+    box_height: float = Field(default=None)
+    has_mask: bool = Field(default=None)
+    has_pose: bool = Field(default=None)
+    feature: str = Field(default=None)
+    uri_image: str = Field(default=None)
+class Detection(DetectionBase, table=True):
+    id: int = Field(default=None, primary_key=True)
