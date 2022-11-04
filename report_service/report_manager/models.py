@@ -108,5 +108,6 @@ class DetectionBase(SQLModel):
     has_pose: bool = Field(default=None)
     feature: str = Field(default=None)
     uri_image: str = Field(default=None)
+    polygon_face: str = Field(default=None)
 class Detection(DetectionBase, table=True):
     id: int = Field(default=None, primary_key=True)

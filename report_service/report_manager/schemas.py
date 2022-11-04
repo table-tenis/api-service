@@ -11,6 +11,12 @@ class MetaData:
     limit: Optional[int] = None
     offset: Optional[int] = None
     size: Optional[int] = None
+    camera_limit: Optional[int] = None
+    camera_offset: Optional[int] = None
+    staff_limit: Optional[int] = None
+    staff_offset: Optional[int] = None
+    detection_limit: Optional[int] = None
+    detection_offset: Optional[int] = None
 
 """ Base Schema"""
 @strawberry.type
@@ -59,6 +65,7 @@ class DetectionSchema:
     h: Optional[float] = None
     feature: Optional[str] = None
     uri_image: Optional[str] = None
+    polygon_face: Optional[str] = None
   
 """ Combine Schemas"""  
 @strawberry.type
@@ -77,8 +84,7 @@ class DetectionNestedStaff(StaffSchema):
     detection: Optional[typing.List[DetectionSchema]] = None
 @strawberry.type
 class CameraReport(CameraSchema):
-    staff: Optional[DetectionNestedStaff] = None
-    # detection: Optional[typing.List[DetectionSchema]] = None
+    staff_list: Optional[typing.List[DetectionNestedStaff]] = None
 
 """ Return Type Class"""
 @strawberry.type
@@ -106,27 +112,46 @@ class DateRange:
 class TimeRange:
     start_time: str
     end_time: Optional[str] = None
+    
 @strawberry.input
-class QueryParams:
+class Box:
+    x: float
+    y: float
+    w: float
+    h: float
+    
+@strawberry.input
+class CameraParams:
+    camera_id: Optional[int] = None
+    camera_ip: Optional[str] = None
+    camera_search: Optional[str] = None
+    camera_sort: Optional[str] = None
+    camera_limit: Optional[int] = None
+    camera_offset: Optional[int] = None
+    box: Optional[Box] = None
+    
+@strawberry.input
+class StaffParams:
     staff_id : Optional[int] = None
     staff_code : Optional[str] = None
     email_code : Optional[str] = None
-    state: Optional[int] = None
-    camera_id: Optional[int] = None
-    camera_ip: Optional[str] = None
-    staff_name: Optional[str] = None
-    sorted: Optional[str] = None
-    search: Optional[str] = None
-    limit: Optional[int] = None
-    offset: Optional[int] = None
+    staff_state: Optional[int] = None
+    staff_search: Optional[str] = None
+    staff_sort: Optional[str] = None
     staff_limit: Optional[int] = None
     staff_offset: Optional[int] = None
-    detection_limit: Optional[int] = None
-    detection_offset: Optional[int] = None
-    detection_sort: Optional[str] = None
     
 @strawberry.input
+class DetectionParams:
+    detection_sort: Optional[str] = None
+    detection_limit: Optional[int] = None
+    detection_offset: Optional[int] = None
+       
+@strawberry.input
 class CommonReportParams:
+    report_date: Optional[date] = None
+    date_range: Optional[DateRange] = None
+    staff_id : Optional[int] = None
     staff_code : Optional[str] = None
     email_code : Optional[str] = None
     state : Optional[int] = None
@@ -134,32 +159,10 @@ class CommonReportParams:
     limit : Optional[int] = None
     offset : Optional[int] = None
 @strawberry.input
-class StaffReportParams:
+class StaffReportParams(StaffParams, DetectionParams):
     time_range: TimeRange
-    staff_id : Optional[int] = None
-    staff_code : Optional[str] = None
-    staff_sort: Optional[str] = None
-    search: Optional[str] = None
-    detection_limit: Optional[int] = None
-    detection_offset: Optional[int] = None
-    detection_sort: Optional[str] = None
     
 @strawberry.input
-class CameraReportParams:
+class CameraReportParams(CameraParams, StaffParams, DetectionParams):
     time_range: TimeRange
-    staff_id : Optional[int] = None
-    staff_code : Optional[str] = None
-    email_code : Optional[str] = None
-    state: Optional[int] = None
-    camera_id: Optional[int] = None
-    camera_ip: Optional[str] = None
-    staff_name: Optional[str] = None
-    sorted: Optional[str] = None
-    search: Optional[str] = None
-    limit: Optional[int] = None
-    offset: Optional[int] = None
-    staff_limit: Optional[int] = None
-    staff_offset: Optional[int] = None
-    detection_limit: Optional[int] = None
-    detection_offset: Optional[int] = None
-    detection_sort: Optional[str] = None
+    

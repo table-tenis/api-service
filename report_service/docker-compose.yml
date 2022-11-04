@@ -25,8 +25,6 @@ services:
       DYNACONF_MARIADB_USERNAME: 'root'
       DYNACONF_MARIADB_PASSWORD: 'root'
       DYNACONF_SECRET_KEY: 09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7
-      DYNACONF_MONGODB_HOST: 172.21.100.167
-      DYNACONF_MONGODB_PORT: 27017
 
     labels:
       # Declare traefik routers
@@ -34,7 +32,7 @@ services:
       - "traefik.http.routers.report.rule=PathPrefix(`/api/xface/v1/reports`)"
       - "traefik.http.routers.report.entrypoints=web"
       - "traefik.http.routers.report.service=report-service"
-      - "traefik.http.routers.report.middlewares=authorization"
+      # - "traefik.http.routers.report.middlewares=authorization"
       
       # Declare traefik services
       - "traefik.http.services.report-service.loadbalancer.server.port=9032"
@@ -44,8 +42,8 @@ services:
       # - "traefik.http.services.enterprise-service.loadbalancer.healthcheck.port=9031"
 
       # Declare traefik middlewares
-      - "traefik.http.middlewares.authorization.forwardauth.address=http://172.21.100.174:9031/api/xface/v1/accounts/auth"
-      - "traefik.http.middlewares.authorization.forwardauth.trustForwardHeader=true"
+      # - "traefik.http.middlewares.authorization.forwardauth.address=http://172.21.100.174:9031/api/xface/v1/accounts/auth"
+      # - "traefik.http.middlewares.authorization.forwardauth.trustForwardHeader=true"
     networks:
       - my-network
 

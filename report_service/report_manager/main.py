@@ -1,7 +1,6 @@
 from fastapi import FastAPI, Request, Response
 
 import time
-from routes.report import report_router
 from starlette.types import ASGIApp, Receive, Scope, Send
 import typing
 RequestResponseEndpoint = typing.Callable[[Request], typing.Awaitable[Response]]
@@ -14,8 +13,8 @@ import hypercorn
 import ssl
 import asyncio
 from config.config import settings
+from routes.report import report_router
 from routes.report_graphql import graphql_app
-from test_graphqlapp import graph_router
 description = """
             Reports Manager
         """
@@ -47,8 +46,7 @@ origins = [
 ]
 
 app.include_router(report_router, prefix="/api/xface/v1/reports")
-app.include_router(graphql_app, prefix="/graphql")
-app.include_router(graph_router, prefix="/test_graphql")
+app.include_router(graphql_app, prefix="/api/xface/v1/reports/graphql")
 if __name__ == "__main__":
     uvicorn.run("main:app", host=settings.SERVICE_HOST, port=settings.SERVICE_PORT, reload=True)
     # config = hypercorn.config.Config()
