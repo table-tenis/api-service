@@ -12,20 +12,20 @@
       #     - $HOME/.vscode-server/extensions:/root/.vscode-server/extensions:rw
 
       account_service:
-        image: account_service:latest
-        container_name: account_service_1
+        image: account_service:1.1
+        container_name: account_service
         restart: always
         ports: 
           - 9031:9031
         volumes:
           - ./account-service-data:/root/.vscode-server/extensions:rw
         environment: 
-          DYNACONF_MARIADB_HOST: 172.21.100.174
+          DYNACONF_MARIADB_HOST: 172.21.100.167
           DYNACONF_MARIADB_PORT: 3306
           DYNACONF_MARIADB_DB_NAME: xface_system
           DYNACONF_MARIADB_USERNAME: 'root'
           DYNACONF_MARIADB_PASSWORD: 'root'
-          DYNACONF_REDIS_HOST: 172.21.100.174
+          DYNACONF_REDIS_HOST: 172.21.100.167
           DYNACONF_REDIS_PORT: 6379
           DYNACONF_TOKEN_EXPIRES: 14400
           DYNACONF_REDIS_PASSWORD: root

@@ -5,19 +5,9 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from fastapi import APIRouter, HTTPException, status
-# import mariadb
-import pymysql.cursors
 import sys, os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from config.config import settings
-
-mariadb_config = {
-    'host': settings.MARIADB_HOST,
-    'port': settings.MARIADB_PORT,
-    'user': settings.MARIADB_USERNAME,
-    'password': settings.MARIADB_PASSWORD,
-    'database': settings.MARIADB_DB_NAME
-}
         
 MARIADB_URL = f"mysql+pymysql://root:root@{settings.MARIADB_HOST}:{settings.MARIADB_PORT}/{settings.MARIADB_DB_NAME}"
 print("DATABASE_URL = ", MARIADB_URL)
@@ -30,17 +20,9 @@ def get_session():
         session.close()
 
 def get_cursor():
-    try:
-        conn = pymysql.connect(**mariadb_config)
-    except Exception as e:
-        raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail = str(e)
-            )
-    with conn.cursor() as cursor:
+    with engine.raw_connection().cursor() as cursor:
         yield cursor
         cursor.close()
-        conn.close()
 
 class DataBase:
     def __init__(self):
